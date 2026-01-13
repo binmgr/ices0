@@ -223,14 +223,20 @@ If you're seeing garbled characters like `ÿþ` in your metadata, these properly
 
 This repository contains only the GitHub Actions workflow for automated multi-platform builds. All build logic is inline in [.github/workflows/build.yml](.github/workflows/build.yml).
 
+The builds use the [`ghcr.io/binmgr/toolchain:latest`](https://github.com/binmgr/toolchain) Docker image - a comprehensive Alpine-based cross-compilation environment with support for Linux, Windows, and macOS targets.
 
 ### How It Works
 
 1. **Triggers**: Builds run on push to main/master, monthly on the 1st at 00:00 UTC, or manually
-2. **Platforms**: Linux (Alpine/musl), macOS (native), Windows (MinGW), FreeBSD (VM)
-3. **Dependencies**: All 9 libraries built from source statically
-4. **ices0**: Built with all features enabled, Python/Perl dynamically linked
-5. **Release**: Automatic GitHub release with version from upstream
+2. **Toolchain**: Uses `ghcr.io/binmgr/toolchain:latest` (Alpine-based with cross-compilers)
+3. **Cross-compilation**: Linux, Windows, and macOS all built in the same container via cross-compilation
+   - **Linux**: Native GCC (x86_64) + Bootlin musl (aarch64)
+   - **Windows**: LLVM MinGW (x86_64, aarch64)
+   - **macOS**: OSXCross with macOS SDK (x86_64, arm64)
+   - **FreeBSD**: Native builds in VM (x86_64, aarch64)
+4. **Dependencies**: All 9 libraries built from source statically
+5. **ices0**: Built with all features enabled, Python/Perl dynamically linked
+6. **Release**: Automatic GitHub release with version from upstream
 
 ### What Gets Built
 
@@ -249,12 +255,14 @@ For each platform:
 ### Build Times
 
 Approximate build times per platform:
-- **Linux**: ~30-45 minutes (per arch)
-- **macOS**: ~25-35 minutes (per arch)
-- **Windows**: ~35-50 minutes (per arch)
-- **FreeBSD**: ~40-60 minutes (per arch, VM overhead)
+- **Linux**: ~30-45 minutes (per arch, container-based)
+- **macOS**: ~30-45 minutes (per arch, cross-compilation via OSXCross)
+- **Windows**: ~35-50 minutes (per arch, cross-compilation via LLVM MinGW)
+- **FreeBSD**: ~40-60 minutes (per arch, VM overhead - native builds)
 
 **Total workflow**: ~2-3 hours for all 10 binaries in parallel
+
+**Note**: FreeBSD still uses VM-based builds as BSD cross-compilation support is not yet available in the toolchain.
 
 ## Platform-Specific Notes
 
@@ -372,9 +380,9 @@ scoop install act
 
 | Platform | Works with `act`? | Notes |
 |----------|-------------------|-------|
-| **Linux builds** | ✅ Yes | Fully supported, uses Docker |
-| **Windows builds** | ⚠️ Partial | MinGW cross-compile might work |
-| **macOS builds** | ❌ No | Requires actual macOS runners |
+| **Linux builds** | ✅ Yes | Fully supported, uses toolchain container |
+| **Windows builds** | ✅ Yes | Cross-compilation via LLVM MinGW in container |
+| **macOS builds** | ✅ Yes | Cross-compilation via OSXCross in container |
 | **FreeBSD builds** | ❌ No | Requires VM action |
 | **Release job** | ❌ No | Needs GitHub release API |
 
@@ -385,9 +393,29 @@ scoop install act
 act -j build-linux --matrix arch:x86_64
 ```
 
-**Test Linux aarch64 build:**
+**Test Windows x86_64 build:**
 ```bash
+act -j build-windows --matrix arch:x86_64
+```
+
+**Test macOS x86_64 build (OSXCross):**
+```bash
+act -j build-macos --matrix arch:x86_64
+```
+
+**Test all cross-compilation targets:**
+```bash
+# Linux
+act -j build-linux --matrix arch:x86_64
 act -j build-linux --matrix arch:aarch64
+
+# Windows
+act -j build-windows --matrix arch:x86_64
+act -j build-windows --matrix arch:aarch64
+
+# macOS
+act -j build-macos --matrix arch:x86_64
+act -j build-macos --matrix arch:arm64
 ```
 
 **List all jobs without running:**
@@ -409,33 +437,46 @@ act -j build-linux --matrix arch:x86_64 -v
 
 | Build | Time | Notes |
 |-------|------|-------|
-| Linux x86_64 | ~30-45 min | Native architecture |
-| Linux aarch64 | ~45-60 min | QEMU emulation (slower) |
+| Linux x86_64 | ~30-45 min | Native compilation |
+| Linux aarch64 | ~45-60 min | Cross-compilation (or QEMU if native not supported) |
+| Windows x86_64 | ~35-50 min | Cross-compilation via LLVM MinGW |
+| Windows aarch64 | ~35-50 min | Cross-compilation via LLVM MinGW |
+| macOS x86_64 | ~30-45 min | Cross-compilation via OSXCross |
+| macOS arm64 | ~30-45 min | Cross-compilation via OSXCross |
 
 ### Iterative Development Workflow
 
 1. Make changes to `.github/workflows/build.yml`
-2. Test locally: `act -j build-linux --matrix arch:x86_64`
+2. Test locally: `act -j build-linux --matrix arch:x86_64` (or any other target)
 3. Fix issues and repeat until it works
-4. Push to GitHub for full multi-platform build
-5. Monitor GitHub Actions for macOS/Windows/FreeBSD
+4. Test other platforms locally: Windows, macOS via `act`
+5. Push to GitHub for full multi-platform build (including FreeBSD)
+6. Monitor GitHub Actions for FreeBSD VM builds
 
 ### Common Issues
 
-**"alpine.sh shell not found"**
+**"Container or shell issues"**
 
-Test manually in Docker:
+Test manually in Docker using the toolchain:
 ```bash
-docker run -it --rm -v $(pwd):/work -w /work alpine:latest sh
-apk add build-base autoconf automake libtool pkgconfig git curl tar gzip bzip2 xz python3-dev perl-dev
+docker run -it --rm -v $(pwd):/workspace -w /workspace ghcr.io/binmgr/toolchain:latest sh
+# Toolchain already has all build tools pre-installed
 # Copy build commands from .github/workflows/build.yml
 ```
 
 **Build takes forever**
 
-Only test x86_64 (ARM64 emulation is slow):
+Test x86_64 targets first (faster than ARM64):
 ```bash
+# Quickest test - Linux x86_64 native
 act -j build-linux --matrix arch:x86_64
+
+# Test cross-compilation
+act -j build-windows --matrix arch:x86_64
+act -j build-macos --matrix arch:x86_64
+
+# ARM64 targets may be slower (cross-compilation or QEMU emulation)
+act -j build-linux --matrix arch:aarch64
 ```
 
 **Out of disk space**
@@ -447,12 +488,13 @@ docker system prune -a
 
 ### GitHub Actions Minutes Savings
 
-Testing locally with `act` saves:
-- **Initial development**: ~200-300 minutes per full run
-- **Each iteration**: ~200-300 minutes per push
-- **Total savings**: 1000+ minutes during development
+Testing locally with `act` saves significant GitHub Actions minutes:
+- **Linux/Windows/macOS builds**: All testable locally with the toolchain container
+- **Initial development**: ~300-400 minutes per full run (8 platforms testable locally)
+- **Each iteration**: ~300-400 minutes per push
+- **Total savings**: 2000+ minutes during development
 
-With the free tier's 2000 minutes/month, local testing lets you develop unlimited times locally and only use GitHub Actions for final validation.
+With the free tier's 2000 minutes/month, local testing lets you develop and test Linux, Windows, and macOS builds unlimited times locally. Only FreeBSD requires GitHub Actions minutes.
 
 ### Resources
 
