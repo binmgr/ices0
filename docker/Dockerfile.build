@@ -1,0 +1,215 @@
+# =============================================================================
+# ices0 Build Environment
+# =============================================================================
+# Pre-built audio codec dependencies for static ices0 compilation
+# Supports: linux/amd64 (native), linux/arm64 (cross-compile)
+# =============================================================================
+
+FROM alpine:3.21
+
+# Dependency versions
+ARG ZLIB_VERSION=1.3.1
+ARG OGG_VERSION=1.3.5
+ARG VORBIS_VERSION=1.3.7
+ARG FLAC_VERSION=1.4.3
+ARG LAME_VERSION=3.100
+ARG OPENSSL_VERSION=3.2.1
+ARG LIBXML2_VERSION=2.12.3
+ARG BOOTLIN_VERSION=2024.02-1
+
+# Install build essentials
+RUN apk add --no-cache \
+    build-base curl wget git autoconf automake libtool pkgconf \
+    linux-headers tar xz bzip2 ca-certificates perl python3 \
+    gcompat
+
+ENV PREFIX_AMD64=/opt/deps/amd64
+ENV PREFIX_ARM64=/opt/deps/arm64
+ENV BOOTLIN_DIR=/opt/cross/aarch64-linux-musl
+
+RUN mkdir -p ${PREFIX_AMD64} ${PREFIX_ARM64} /build
+
+WORKDIR /build
+
+# Download all sources
+RUN wget -q "https://zlib.net/zlib-${ZLIB_VERSION}.tar.gz" && \
+    wget -q "https://downloads.xiph.org/releases/ogg/libogg-${OGG_VERSION}.tar.xz" && \
+    wget -q "https://downloads.xiph.org/releases/vorbis/libvorbis-${VORBIS_VERSION}.tar.xz" && \
+    wget -q "https://downloads.xiph.org/releases/flac/flac-${FLAC_VERSION}.tar.xz" && \
+    wget -q "https://sourceforge.net/projects/lame/files/lame/${LAME_VERSION}/lame-${LAME_VERSION}.tar.gz/download" -O lame.tar.gz && \
+    wget -q "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" && \
+    wget -q "https://download.gnome.org/sources/libxml2/2.12/libxml2-${LIBXML2_VERSION}.tar.xz" && \
+    git clone --depth 1 https://github.com/knik0/faad2.git && \
+    git clone --depth 1 https://gitlab.xiph.org/xiph/icecast-libshout.git
+
+# Install Bootlin cross-compiler
+RUN mkdir -p /opt/cross && \
+    wget -q "https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-${BOOTLIN_VERSION}.tar.bz2" && \
+    tar xjf "aarch64--musl--stable-${BOOTLIN_VERSION}.tar.bz2" -C /opt/cross && \
+    mv "/opt/cross/aarch64--musl--stable-${BOOTLIN_VERSION}" ${BOOTLIN_DIR} && \
+    rm -f *.tar.bz2 && \
+    cd ${BOOTLIN_DIR}/bin && \
+    for tool in gcc g++; do \
+        rm -f aarch64-linux-$tool && \
+        printf '#!/bin/sh\nexec %s/bin/aarch64-buildroot-linux-musl-'$tool'.br_real "$@"\n' ${BOOTLIN_DIR} > aarch64-linux-$tool && \
+        chmod +x aarch64-linux-$tool; \
+    done && \
+    for tool in ar strip ranlib; do \
+        rm -f aarch64-linux-$tool && \
+        ln -sf aarch64-buildroot-linux-musl-$tool aarch64-linux-$tool; \
+    done
+
+ENV PATH="${BOOTLIN_DIR}/bin:${PATH}"
+
+# =============================================================================
+# Build dependencies for AMD64
+# =============================================================================
+RUN tar xzf zlib-*.tar.gz && cd zlib-*/ && \
+    ./configure --prefix=${PREFIX_AMD64} --static && \
+    make -j$(nproc) && make install && cd .. && rm -rf zlib-*/
+
+RUN tar xJf libogg-*.tar.xz && cd libogg-*/ && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static && \
+    make -j$(nproc) && make install && cd .. && rm -rf libogg-*/
+
+RUN tar xJf libvorbis-*.tar.xz && cd libvorbis-*/ && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static --with-ogg=${PREFIX_AMD64} && \
+    make -j$(nproc) && make install && cd .. && rm -rf libvorbis-*/
+
+RUN tar xJf flac-*.tar.xz && cd flac-*/ && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static \
+        --with-ogg=${PREFIX_AMD64} --disable-programs --disable-examples && \
+    make -j$(nproc) && make install && cd .. && rm -rf flac-*/
+
+RUN tar xzf lame.tar.gz && cd lame-*/ && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static \
+        --enable-nasm --disable-frontend && \
+    make -j$(nproc) && make install && cd .. && rm -rf lame-*/
+
+RUN cd faad2 && autoreconf -fi && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static --without-drm && \
+    make -j$(nproc) && make install && cd .. && rm -rf faad2
+
+RUN tar xzf openssl-*.tar.gz && cd openssl-*/ && \
+    ./config --prefix=${PREFIX_AMD64} --openssldir=${PREFIX_AMD64}/ssl no-shared -static && \
+    make -j$(nproc) && make install_sw && cd .. && rm -rf openssl-*/
+
+RUN tar xJf libxml2-*.tar.xz && cd libxml2-*/ && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static \
+        --without-python --without-readline --without-lzma --without-zstd \
+        --with-zlib=${PREFIX_AMD64} && \
+    make -j$(nproc) && make install && cd .. && rm -rf libxml2-*/
+
+RUN cd icecast-libshout && autoreconf -fi && \
+    ./configure --prefix=${PREFIX_AMD64} --disable-shared --enable-static \
+        --with-ogg=${PREFIX_AMD64} --with-vorbis=${PREFIX_AMD64} --with-openssl=${PREFIX_AMD64} && \
+    make -j$(nproc) && make install && cd ..
+
+# =============================================================================
+# Build dependencies for ARM64 (cross-compile)
+# =============================================================================
+RUN tar xzf zlib-*.tar.gz && cd zlib-*/ && \
+    CHOST=aarch64-linux-musl CC=aarch64-linux-gcc AR=aarch64-linux-ar RANLIB=aarch64-linux-ranlib \
+    ./configure --prefix=${PREFIX_ARM64} --static && \
+    make -j$(nproc) && make install && cd .. && rm -rf zlib-*/
+
+RUN tar xJf libogg-*.tar.xz && cd libogg-*/ && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static && \
+    make -j$(nproc) && make install && cd .. && rm -rf libogg-*/
+
+RUN tar xJf libvorbis-*.tar.xz && cd libvorbis-*/ && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static --with-ogg=${PREFIX_ARM64} && \
+    make -j$(nproc) && make install && cd .. && rm -rf libvorbis-*/
+
+RUN tar xJf flac-*.tar.xz && cd flac-*/ && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static --with-ogg=${PREFIX_ARM64} \
+        --disable-programs --disable-examples && \
+    make -j$(nproc) && make install && cd .. && rm -rf flac-*/
+
+RUN tar xzf lame.tar.gz && cd lame-*/ && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static --disable-frontend && \
+    make -j$(nproc) && make install && cd .. && rm -rf lame-*/
+
+RUN git clone --depth 1 https://github.com/knik0/faad2.git faad2-arm && \
+    cd faad2-arm && autoreconf -fi && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static --without-drm && \
+    make -j$(nproc) && make install && cd .. && rm -rf faad2-arm
+
+RUN tar xzf openssl-*.tar.gz && cd openssl-*/ && \
+    ./Configure linux-aarch64 --prefix=${PREFIX_ARM64} --cross-compile-prefix=aarch64-linux- \
+        no-shared && \
+    make -j$(nproc) && make install_sw && cd .. && rm -rf openssl-*/
+
+RUN tar xJf libxml2-*.tar.xz && cd libxml2-*/ && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static --without-python --without-readline \
+        --without-lzma --without-zstd --with-zlib=${PREFIX_ARM64} && \
+    make -j$(nproc) && make install && cd .. && rm -rf libxml2-*/
+
+RUN git clone --depth 1 https://gitlab.xiph.org/xiph/icecast-libshout.git shout-arm && \
+    cd shout-arm && autoreconf -fi && \
+    ./configure --prefix=${PREFIX_ARM64} --host=aarch64-linux-musl \
+        --disable-shared --enable-static \
+        --with-ogg=${PREFIX_ARM64} --with-vorbis=${PREFIX_ARM64} --with-openssl=${PREFIX_ARM64} && \
+    make -j$(nproc) && make install && cd .. && rm -rf shout-arm
+
+# Cleanup
+RUN rm -rf /build/*
+
+# =============================================================================
+# Build script
+# =============================================================================
+COPY <<'EOF' /usr/local/bin/build-ices0
+#!/bin/sh
+set -e
+
+ARCH="${1:-amd64}"
+
+case "$ARCH" in
+    amd64) PREFIX=/opt/deps/amd64; CC=gcc; STRIP=strip; HOST="" ;;
+    arm64) PREFIX=/opt/deps/arm64; CC=aarch64-linux-gcc; STRIP=aarch64-linux-strip; HOST="--host=aarch64-linux-musl" ;;
+    *) echo "Unknown arch: $ARCH"; exit 1 ;;
+esac
+
+echo "Building ices0 for ${ARCH}..."
+
+cd /build
+git clone https://github.com/Moonbase59/ices0.git
+cd ices0
+
+VERSION_MAJOR=$(grep -Po 'ICES_MAJOR=\K[0-9]+' configure.ac || echo "0")
+VERSION_MINOR=$(grep -Po 'ICES_MINOR=\K[0-9]+' configure.ac || echo "0")
+VERSION_MICRO=$(grep -Po 'ICES_MICRO=\K[0-9]+' configure.ac || echo "0")
+VERSION="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_MICRO}"
+
+export CC CFLAGS="-Os -I${PREFIX}/include" LDFLAGS="-L${PREFIX}/lib"
+export LIBS="-lshout -lvorbisfile -lvorbis -logg -lFLAC -lmp3lame -lfaad -lxml2 -lssl -lcrypto -lz -lm"
+export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig"
+
+autoreconf -fi
+./configure ${HOST} --prefix=/usr \
+    --with-xml-config="${PREFIX}/bin/xml2-config" \
+    --with-lame="${PREFIX}" --with-vorbis="${PREFIX}" \
+    --with-faad="${PREFIX}" --with-flac="${PREFIX}" \
+    --without-python --without-perl
+
+make -j$(nproc)
+${STRIP} src/ices
+
+mkdir -p /output
+cp src/ices /output/ices0-linux-${ARCH}
+echo "Built: /output/ices0-linux-${ARCH} (v${VERSION})"
+echo "${VERSION}" > /output/VERSION
+EOF
+
+RUN chmod +x /usr/local/bin/build-ices0
+
+WORKDIR /workspace
+VOLUME ["/workspace", "/output"]
+
+CMD ["echo", "Usage: docker run --rm -v $(pwd)/output:/output ghcr.io/binmgr/ices0:build build-ices0 [amd64|arm64]"]
