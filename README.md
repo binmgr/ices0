@@ -28,12 +28,12 @@ All optional features are compiled in:
 - ✅ MP4/AAC transcoding (FAAD2)
 - ✅ TLS/SSL support (OpenSSL)
 - ✅ Proper UTF-8 metadata handling (built-in)
-- ✅ Python scripting (dynamic - requires Python runtime on user system)
-- ✅ Perl scripting (dynamic - requires Perl runtime on user system)
+- ❌ Python scripting (disabled in the fully static Linux build)
+- ❌ Perl scripting (disabled in the fully static Linux build)
 
 ### Static Binaries
 
-All audio codec libraries are statically linked. Python and Perl are dynamically linked to enable scripting features without bloating binaries.
+All supported libraries in the Linux build are statically linked so the runtime image can stay `FROM scratch`.
 
 **Static (built-in)**:
 - All audio codecs (MP3/LAME, Vorbis, FLAC, AAC/FAAD2)
@@ -41,15 +41,19 @@ All audio codec libraries are statically linked. Python and Perl are dynamically
 - SSL/TLS support (OpenSSL)
 - All streaming libraries (libshout)
 
-**Dynamic (optional)**:
-- Python 3 (for Python playlist scripts)
-- Perl (for Perl playlist scripts)
-
-If you don't use scripting features, the binaries work standalone without Python/Perl installed.
+**Not included in the static Linux build**:
+- Python playlist scripting
+- Perl playlist scripting
 
 ## Downloads
 
 See [Releases](../../releases) for downloads.
+
+Container images are also published to `ghcr.io/binmgr/ices0` with these tags:
+
+- `latest` - newest released version
+- `{version}` - numbered release tag such as `1.3.2`
+- `{yymm}` - release month tag such as `2605`
 
 ### Available Builds
 
@@ -57,7 +61,7 @@ Each release includes binaries for:
 
 | Platform | Architectures | Notes |
 |----------|---------------|-------|
-| **Linux** | x86_64, aarch64 | Fully static (musl libc) |
+| **Linux** | amd64, arm64 | Fully static |
 | **macOS** | x86_64, arm64 | Near-static (system libs dynamic) |
 | **Windows** | x86_64, aarch64 | Static (.exe binaries) |
 | **FreeBSD** | x86_64, aarch64 | Static |
@@ -72,14 +76,14 @@ Plus:
 
 ```bash
 # Download the appropriate binary for your platform and architecture
-# Example for Linux x86_64:
-wget https://github.com/YOUR-USERNAME/ices0/releases/latest/download/ices0-linux-x86_64
+# Example for Linux amd64:
+wget https://github.com/YOUR-USERNAME/ices0/releases/latest/download/ices0-linux-amd64
 
 # Make it executable
-chmod +x ices0-linux-x86_64
+chmod +x ices0-linux-amd64
 
 # Rename for convenience (optional)
-mv ices0-linux-x86_64 ices0
+mv ices0-linux-amd64 ices0
 
 # Run
 ./ices0 -V
@@ -172,39 +176,9 @@ Options:
 
 ## Python/Perl Scripting
 
-These builds have Python and Perl **features compiled in** but **dynamically linked**. To use scripting features, install the runtime on your system:
+Python and Perl playlist scripting are disabled in the fully static Linux build so the binary stays scratch-compatible.
 
-### Linux
-```bash
-# Debian/Ubuntu
-sudo apt install python3 perl
-
-# RHEL/CentOS/Fedora
-sudo dnf install python3 perl
-
-# Alpine
-apk add python3 perl
-
-# Arch
-sudo pacman -S python perl
-```
-
-### macOS
-```bash
-# Usually pre-installed, or via Homebrew
-brew install python3 perl
-```
-
-### Windows
-- **Python**: Download from [python.org](https://www.python.org/downloads/)
-- **Perl**: Install [Strawberry Perl](https://strawberryperl.com/) or [ActivePerl](https://www.activestate.com/products/perl/)
-
-### FreeBSD
-```bash
-pkg install python3 perl5
-```
-
-**Without Python/Perl installed**, you can still use:
+You can still use:
 - Static file playlists
 - Shell script playlists
 - Built-in playlist module
@@ -221,9 +195,9 @@ If you're seeing garbled characters like `ÿþ` in your metadata, these properly
 
 ## Build System
 
-This repository contains only the GitHub Actions workflow for automated multi-platform builds. All build logic is inline in [.github/workflows/build.yml](.github/workflows/build.yml).
+This repository contains two GitHub Actions workflows: [.github/workflows/build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, and [.github/workflows/build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases the static Linux binaries.
 
-The builds use the [`ghcr.io/binmgr/toolchain:latest`](https://github.com/binmgr/toolchain) Docker image - a comprehensive Alpine-based cross-compilation environment with support for Linux, Windows, and macOS targets.
+The Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image, which is produced from [docker/Dockerfile.build](docker/Dockerfile.build).
 
 ### How It Works
 
@@ -234,9 +208,9 @@ The builds use the [`ghcr.io/binmgr/toolchain:latest`](https://github.com/binmgr
    - **Windows**: LLVM MinGW (x86_64, aarch64)
    - **macOS**: OSXCross with macOS SDK (x86_64, arm64)
    - **FreeBSD**: Native builds in VM (x86_64, aarch64)
-4. **Dependencies**: All 9 libraries built from source statically
-5. **ices0**: Built with all features enabled, Python/Perl dynamically linked
-6. **Release**: Automatic GitHub release with version from upstream
+4. **Dependencies**: Linux amd64 reuses Alpine static packages plus source-built LAME/mp4v2/libshout; Linux arm64 cross-builds its static target libraries from source with the Bootlin musl toolchain
+5. **ices0**: Built with XML, LAME, Vorbis, FLAC, MP4/AAC, and TLS support enabled; Python/Perl scripting disabled for a fully static Linux binary
+6. **Release**: Automatic GitHub release with version from upstream, plus container image tags for `latest`, `{version}`, and `{yymm}`
 
 ### What Gets Built
 
@@ -267,8 +241,8 @@ Approximate build times per platform:
 ## Platform-Specific Notes
 
 ### Linux
-- **Fully static** with musl libc
-- Zero dynamic dependencies (except Python/Perl if using scripting)
+- **Fully static**
+- Zero dynamic dependencies
 - Works on any Linux distribution
 
 ### macOS
@@ -446,7 +420,7 @@ act -j build-linux --matrix arch:x86_64 -v
 
 ### Iterative Development Workflow
 
-1. Make changes to `.github/workflows/build.yml`
+1. Make changes to `.github/workflows/build-linux-binaries.yml` or `.github/workflows/build-env-image.yml`
 2. Test locally: `act -j build-linux --matrix arch:x86_64` (or any other target)
 3. Fix issues and repeat until it works
 4. Test other platforms locally: Windows, macOS via `act`
@@ -461,7 +435,7 @@ Test manually in Docker using the toolchain:
 ```bash
 docker run -it --rm -v $(pwd):/workspace -w /workspace ghcr.io/binmgr/toolchain:latest sh
 # Toolchain already has all build tools pre-installed
-# Copy build commands from .github/workflows/build.yml
+# Copy build commands from .github/workflows/build-linux-binaries.yml
 ```
 
 **Build takes forever**
