@@ -147,7 +147,7 @@ build_arm64_deps() {
         make install
     )
 
-    fetch_archive "https://www.openssl.org/source/openssl-3.3.2.tar.gz" "openssl-3.3.2.tar.gz" "${SOURCE_ROOT}/openssl"
+    fetch_archive "https://github.com/openssl/openssl/releases/download/openssl-3.5.0/openssl-3.5.0.tar.gz" "openssl-3.5.0.tar.gz" "${SOURCE_ROOT}/openssl"
     (
         cd "${SOURCE_ROOT}/openssl"
         ./Configure linux-aarch64 no-shared no-tests -static \
