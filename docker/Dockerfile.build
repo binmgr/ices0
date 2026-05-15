@@ -273,7 +273,7 @@ cd /build
 rm -rf ices0
 git clone https://github.com/Moonbase59/ices0.git && cd ices0
 
-VERSION=$(grep -oE 'ICES_MAJOR=[0-9]+' configure.ac | cut -d= -f2 || echo "0").$(grep -oE 'ICES_MINOR=[0-9]+' configure.ac | cut -d= -f2 || echo "0").$(grep -oE 'ICES_MICRO=[0-9]+' configure.ac | cut -d= -f2 || echo "0")
+VERSION=$(sed -n 's/.*m4_define(ICES_MAJOR, \([0-9]*\)).*/\1/p' configure.ac).$(sed -n 's/.*m4_define(ICES_MINOR, \([0-9]*\)).*/\1/p' configure.ac).$(sed -n 's/.*m4_define(ICES_MICRO, \([0-9]*\)).*/\1/p' configure.ac)
 
 export CC CXX CFLAGS CPPFLAGS LDFLAGS PKG_CONFIG_PATH PKG_CONFIG_LIBDIR
 LIBSTDCPP=$(${CXX} -print-file-name=libstdc++.a)
