@@ -1,0 +1,33 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: binmgr/ices0
+
+jobs:
+  trivy:
+    name: Trivy container scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Trivy
+        run: |
+          curl -qLSsf https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - name: Scan published image
+        run: |
+          trivy image --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"

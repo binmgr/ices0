@@ -1,0 +1,86 @@
+name: icecast
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '5m'
+    max-file: '1'
+
+services:
+  server:
+    image: libretime/icecast:latest
+    container_name: icecast-server
+    hostname: icecast-server
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      TZ: America/New_York
+      ICECAST_HOSTNAME: localhost
+      ICECAST_LOCATION: USA
+      ICECAST_MAX_CLIENTS: 1000
+      ICECAST_MAX_SOURCES: 100
+      ICECAST_ADMIN_USERNAME: admin
+      ICECAST_ADMIN_EMAIL: admin@localhost
+      ICECAST_ADMIN_PASSWORD: changeme_admin_password
+      ICECAST_SOURCE_PASSWORD: changeme_stream_password
+      ICECAST_RELAY_PASSWORD: changeme_stream_password
+    ports:
+      - '127.0.0.1:8000:8000'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8000/ >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - icecast
+
+  music:
+    image: ghcr.io/binmgr/ices0:latest
+    container_name: icecast-music
+    hostname: music
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      TZ: America/New_York
+      STREAM_HOST: server
+      STREAM_PORT: 8000
+      STREAM_PROTOCOL: http
+      STREAM_PASSWORD: changeme_stream_password
+      STREAM_MOUNTPOINT: /music
+      STREAM_NAME: Music
+      STREAM_GENRE: Various
+      STREAM_DESCRIPTION: Music Stream
+      STREAM_URL: http://localhost/music
+      STREAM_PRIVATE: 0
+      STREAM_BITRATE: 320
+      STREAM_REENCODED: 0
+      STREAM_REENCODED_CHANNELS: 2
+      STREAM_REENCODED_SAMPLERATE: 44100
+      STREAM_RANDOMIZE: 1
+      STREAM_CROSSFADE: 2
+      STREAM_VERBOSE: 0
+      STREAM_BACKGROUND: 0
+      STREAM_PLAYLIST_TYPE: builtin
+      STREAM_INTERPRETER_MODULE: ices
+      STREAM_MEDIA_FOLDER: /media
+      STREAM_CONFIG: /ices/ices.conf
+      STREAM_PLAYLIST: /ices/playlist.txt
+    volumes:
+      - './volumes/data/media/music:/media:ro'
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - icecast
+
+networks:
+  icecast:
+    name: icecast
+    driver: bridge

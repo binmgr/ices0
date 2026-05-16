@@ -1,6 +1,6 @@
 # ices0 - Multi-Platform Static Binary Builds
 
-Automated builds of static [ices0](https://github.com/Moonbase59/ices0) binaries for **Linux, macOS, Windows, and FreeBSD** (all amd64/arm64).
+Automated builds of static [ices0](https://github.com/Moonbase59/ices0) binaries for **Linux and FreeBSD** (amd64/arm64), plus a multi-arch Docker image with environment-variable-driven configuration.
 
 ## What is ices0?
 
@@ -61,53 +61,77 @@ Each release includes binaries for:
 
 | Platform | Architectures | Notes |
 |----------|---------------|-------|
-| **Linux** | amd64, arm64 | Fully static |
-| **macOS** | x86_64, arm64 | Near-static (system libs dynamic) |
-| **Windows** | x86_64, aarch64 | Static (.exe binaries) |
-| **FreeBSD** | x86_64, aarch64 | Static |
+| **Linux** | amd64, arm64 | Fully static (musl) |
+| **FreeBSD** | amd64, arm64 | Native build, dynamic system libs |
 
 Plus:
-- **Source archive** (`ices0-X.X.X-src.tar.gz`) - No VCS files
-- **SHA256SUMS.txt** - Checksums for verification
+- **checksums.txt** — SHA-256 checksums for all binaries
 
 ## Quick Start
 
-### Linux/macOS/FreeBSD
+### Binary
 
 ```bash
-# Download the appropriate binary for your platform and architecture
-# Example for Linux amd64:
-wget https://github.com/YOUR-USERNAME/ices0/releases/latest/download/ices0-linux-amd64
+# Download the binary for your platform and architecture, e.g. Linux amd64:
+wget https://github.com/binmgr/ices0/releases/latest/download/ices0-linux-amd64
 
-# Make it executable
 chmod +x ices0-linux-amd64
-
-# Rename for convenience (optional)
-mv ices0-linux-amd64 ices0
-
-# Run
-./ices0 -V
+./ices0-linux-amd64 -V
 ```
 
-### Windows
+### Docker
 
-```powershell
-# Download from releases page or use curl/wget
-# Example: ices0-windows-x86_64.exe
-
-# Run
-.\ices0-windows-x86_64.exe -V
+```bash
+# Drop-in replacement for zerg13/ices — configure entirely via environment variables:
+docker run --rm \
+  -e STREAM_HOST=icecast-server \
+  -e STREAM_PASSWORD=changeme \
+  -e STREAM_MOUNTPOINT=/music \
+  -e STREAM_NAME="My Music" \
+  -v /path/to/music:/media:ro \
+  ghcr.io/binmgr/ices0:latest
 ```
+
+See [docker/docker-compose.yml](docker/docker-compose.yml) for a full Compose stack.
 
 ### Verify Integrity (Optional)
 
 ```bash
-# Download checksums
-wget https://github.com/YOUR-USERNAME/ices0/releases/latest/download/SHA256SUMS.txt
-
-# Verify
-sha256sum -c SHA256SUMS.txt --ignore-missing
+wget https://github.com/binmgr/ices0/releases/latest/download/checksums.txt
+sha256sum -c checksums.txt --ignore-missing
 ```
+
+## Docker Environment Variables
+
+The container image is a drop-in replacement for `zerg13/ices`. Configure it entirely via environment variables — no config file needed.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STREAM_HOST` | `localhost` | Icecast server hostname |
+| `STREAM_PORT` | `8000` | Icecast server port |
+| `STREAM_PASSWORD` | `hackme` | Source password |
+| `STREAM_PROTOCOL` | `http` | `http` or `https` |
+| `STREAM_MOUNTPOINT` | `/stream` | Mount point path |
+| `STREAM_NAME` | `ices0 Stream` | Stream display name |
+| `STREAM_GENRE` | `Various` | Stream genre |
+| `STREAM_DESCRIPTION` | `ices0 audio stream` | Stream description |
+| `STREAM_URL` | _(empty)_ | Stream URL |
+| `STREAM_PRIVATE` | `0` | `1` = unlisted (not in directory) |
+| `STREAM_BITRATE` | `320` | Output bitrate (kbps) |
+| `STREAM_REENCODED` | `0` | `1` = re-encode to MP3 |
+| `STREAM_REENCODED_CHANNELS` | `2` | Output channels |
+| `STREAM_REENCODED_SAMPLERATE` | `44100` | Output sample rate (Hz) |
+| `STREAM_RANDOMIZE` | `0` | `1` = shuffle playlist |
+| `STREAM_CROSSFADE` | `2` | Crossfade seconds (`0` = off) |
+| `STREAM_VERBOSE` | `0` | `1` = verbose logging |
+| `STREAM_BACKGROUND` | `0` | `1` = daemon mode (avoid in containers) |
+| `STREAM_PLAYLIST_TYPE` | `builtin` | Playlist module |
+| `STREAM_INTERPRETER_MODULE` | `ices` | Interpreter module name |
+| `STREAM_MEDIA_FOLDER` | `/media` | Mount your audio files here |
+| `STREAM_CONFIG` | `/ices/ices.conf` | Generated config path |
+| `STREAM_PLAYLIST` | `/ices/playlist.txt` | Generated playlist path |
+
+When `STREAM_PLAYLIST_TYPE=builtin`, the entrypoint automatically scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.flac`, `*.m4a`, `*.aac` files and generates the playlist.
 
 ## Configuration
 
@@ -195,91 +219,54 @@ If you're seeing garbled characters like `ÿþ` in your metadata, these properly
 
 ## Build System
 
-This repository contains two GitHub Actions workflows: [.github/workflows/build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, and [.github/workflows/build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases the static Linux binaries.
+This repository contains two GitHub Actions workflows: [.github/workflows/build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, and [.github/workflows/build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases binaries.
 
-The Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image, which is produced from [docker/Dockerfile.build](docker/Dockerfile.build).
+Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced from [docker/Dockerfile.build](docker/Dockerfile.build). FreeBSD builds run in native QEMU VMs via `vmactions/freebsd-vm`.
 
 ### How It Works
 
-1. **Triggers**: Builds run on push to main/master, monthly on the 1st at 00:00 UTC, or manually
-2. **Toolchain**: Uses `ghcr.io/binmgr/toolchain:latest` (Alpine-based with cross-compilers)
-3. **Cross-compilation**: Linux, Windows, and macOS all built in the same container via cross-compilation
-   - **Linux**: Native GCC (x86_64) + Bootlin musl (aarch64)
-   - **Windows**: LLVM MinGW (x86_64, aarch64)
-   - **macOS**: OSXCross with macOS SDK (x86_64, arm64)
-   - **FreeBSD**: Native builds in VM (x86_64, aarch64)
-4. **Dependencies**: Linux amd64 reuses Alpine static packages plus source-built LAME/mp4v2/libshout; Linux arm64 cross-builds its static target libraries from source with the Bootlin musl toolchain
-5. **ices0**: Built with XML, LAME, Vorbis, FLAC, MP4/AAC, and TLS support enabled; Python/Perl scripting disabled for a fully static Linux binary
-6. **Release**: Automatic GitHub release with version from upstream, plus container image tags for `latest`, `{version}`, and `{yymm}`
+1. `build-env-image.yml` builds `ghcr.io/binmgr/ices0:build` when `docker/Dockerfile.build` changes, quarterly, or manually
+2. `build-linux-binaries.yml` triggers on successful `Build Environment Image` completion on main/master, or manually
+3. Linux amd64 builds natively with Alpine GCC; Linux arm64 cross-builds with the Bootlin musl toolchain
+4. FreeBSD builds natively inside QEMU VMs via `vmactions/freebsd-vm`
+5. Version is extracted from upstream `configure.ac` at build time
+6. Release is created with all binaries, checksums, and container image tags `latest`, `{version}`, `{yymm}`
 
 ### What Gets Built
 
-For each platform:
-- zlib (compression)
-- libogg (audio container)
-- libvorbis (Vorbis codec)
-- libFLAC (FLAC codec)
-- libmp3lame (MP3 encoder)
-- libfaad2 (AAC decoder)
-- OpenSSL (TLS/SSL)
-- libshout (Icecast streaming)
-- libxml2 (XML configuration)
-- ices0 (with all of the above)
+For Linux (statically linked into the binary):
+- zlib, libogg, libvorbis, libFLAC, libmp3lame, libfaad2, OpenSSL, libshout, libxml2
+- ices0 with all the above
+
+For FreeBSD (dynamically linked against pkg-installed system libs):
+- All of the above via `pkg install`
 
 ### Build Times
 
-Approximate build times per platform:
-- **Linux**: ~30-45 minutes (per arch, container-based)
-- **macOS**: ~30-45 minutes (per arch, cross-compilation via OSXCross)
-- **Windows**: ~35-50 minutes (per arch, cross-compilation via LLVM MinGW)
-- **FreeBSD**: ~40-60 minutes (per arch, VM overhead - native builds)
-
-**Total workflow**: ~2-3 hours for all 10 binaries in parallel
-
-**Note**: FreeBSD still uses VM-based builds as BSD cross-compilation support is not yet available in the toolchain.
+- **Linux amd64**: ~30–45 min (container-based)
+- **Linux arm64**: ~45–60 min (cross-compilation with Bootlin toolchain)
+- **FreeBSD amd64/arm64**: ~40–60 min each (QEMU VM overhead)
 
 ## Platform-Specific Notes
 
 ### Linux
-- **Fully static**
-- Zero dynamic dependencies
-- Works on any Linux distribution
-
-### macOS
-- **Near-static** (system libraries must be dynamic)
-- Requires macOS 12+ (Monterey or later)
-- Python/Perl support requires system runtimes
-
-### Windows
-- **Static** MinGW build
-- No DLL dependencies (except Windows system DLLs)
-- Python/Perl support requires separate installation
+- Fully static — zero dynamic dependencies
+- Works on any Linux distribution (glibc or musl)
 
 ### FreeBSD
-- **Static** build
-- Tested on FreeBSD 14.0
-- Python/Perl support requires pkg installation
+- Dynamically linked against FreeBSD 15.0 system libraries
+- Python/Perl scripting requires `pkg install python3 perl5`
 
 ## Troubleshooting
 
 ### Binary won't execute
 
 ```bash
-# Linux/macOS/FreeBSD: Make sure it's executable
+# Make sure it's executable
 chmod +x ices0-*
 
 # Check architecture matches your system
 uname -m  # Should be x86_64 or aarch64/arm64
-```
-
-### Python/Perl scripting not working
-
-```bash
-# Check if Python/Perl are installed
-python3 --version
-perl --version
-
-# If not, install them (see Python/Perl Scripting section above)
 ```
 
 ### Metadata issues
@@ -329,149 +316,23 @@ For issues with:
 
 ## Local Testing with `act`
 
-Test workflows locally using [`act`](https://github.com/nektos/act) to avoid consuming GitHub Actions minutes.
+Test Linux builds locally using [`act`](https://github.com/nektos/act):
 
-### Installation
-
-**macOS:**
 ```bash
-brew install act
-```
+# Test Linux amd64 build
+act -j build-linux --matrix arch:amd64
 
-**Linux:**
-```bash
-curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
-```
+# Test Linux arm64 build
+act -j build-linux --matrix arch:arm64
 
-**Windows:**
-```bash
-choco install act-cli
-# or with scoop
-scoop install act
-```
-
-### What Works with `act`
-
-| Platform | Works with `act`? | Notes |
-|----------|-------------------|-------|
-| **Linux builds** | ✅ Yes | Fully supported, uses toolchain container |
-| **Windows builds** | ✅ Yes | Cross-compilation via LLVM MinGW in container |
-| **macOS builds** | ✅ Yes | Cross-compilation via OSXCross in container |
-| **FreeBSD builds** | ❌ No | Requires VM action |
-| **Release job** | ❌ No | Needs GitHub release API |
-
-### Quick Start
-
-**Test Linux x86_64 build (fastest):**
-```bash
-act -j build-linux --matrix arch:x86_64
-```
-
-**Test Windows x86_64 build:**
-```bash
-act -j build-windows --matrix arch:x86_64
-```
-
-**Test macOS x86_64 build (OSXCross):**
-```bash
-act -j build-macos --matrix arch:x86_64
-```
-
-**Test all cross-compilation targets:**
-```bash
-# Linux
-act -j build-linux --matrix arch:x86_64
-act -j build-linux --matrix arch:aarch64
-
-# Windows
-act -j build-windows --matrix arch:x86_64
-act -j build-windows --matrix arch:aarch64
-
-# macOS
-act -j build-macos --matrix arch:x86_64
-act -j build-macos --matrix arch:arm64
-```
-
-**List all jobs without running:**
-```bash
+# List all jobs
 act -l
 ```
 
-**Dry run (validate syntax):**
+FreeBSD and the release job require live GitHub Actions (VM and GitHub release API).
+
 ```bash
-act -j build-linux --matrix arch:x86_64 --dryrun
+# Manual test in the build container
+docker run --rm -it ghcr.io/binmgr/ices0:build sh
+# Then: build-ices0 amd64
 ```
-
-**Verbose output (debugging):**
-```bash
-act -j build-linux --matrix arch:x86_64 -v
-```
-
-### Expected Build Times
-
-| Build | Time | Notes |
-|-------|------|-------|
-| Linux x86_64 | ~30-45 min | Native compilation |
-| Linux aarch64 | ~45-60 min | Cross-compilation (or QEMU if native not supported) |
-| Windows x86_64 | ~35-50 min | Cross-compilation via LLVM MinGW |
-| Windows aarch64 | ~35-50 min | Cross-compilation via LLVM MinGW |
-| macOS x86_64 | ~30-45 min | Cross-compilation via OSXCross |
-| macOS arm64 | ~30-45 min | Cross-compilation via OSXCross |
-
-### Iterative Development Workflow
-
-1. Make changes to `.github/workflows/build-linux-binaries.yml` or `.github/workflows/build-env-image.yml`
-2. Test locally: `act -j build-linux --matrix arch:x86_64` (or any other target)
-3. Fix issues and repeat until it works
-4. Test other platforms locally: Windows, macOS via `act`
-5. Push to GitHub for full multi-platform build (including FreeBSD)
-6. Monitor GitHub Actions for FreeBSD VM builds
-
-### Common Issues
-
-**"Container or shell issues"**
-
-Test manually in Docker using the toolchain:
-```bash
-docker run -it --rm -v $(pwd):/workspace -w /workspace ghcr.io/binmgr/toolchain:latest sh
-# Toolchain already has all build tools pre-installed
-# Copy build commands from .github/workflows/build-linux-binaries.yml
-```
-
-**Build takes forever**
-
-Test x86_64 targets first (faster than ARM64):
-```bash
-# Quickest test - Linux x86_64 native
-act -j build-linux --matrix arch:x86_64
-
-# Test cross-compilation
-act -j build-windows --matrix arch:x86_64
-act -j build-macos --matrix arch:x86_64
-
-# ARM64 targets may be slower (cross-compilation or QEMU emulation)
-act -j build-linux --matrix arch:aarch64
-```
-
-**Out of disk space**
-
-Clean Docker images:
-```bash
-docker system prune -a
-```
-
-### GitHub Actions Minutes Savings
-
-Testing locally with `act` saves significant GitHub Actions minutes:
-- **Linux/Windows/macOS builds**: All testable locally with the toolchain container
-- **Initial development**: ~300-400 minutes per full run (8 platforms testable locally)
-- **Each iteration**: ~300-400 minutes per push
-- **Total savings**: 2000+ minutes during development
-
-With the free tier's 2000 minutes/month, local testing lets you develop and test Linux, Windows, and macOS builds unlimited times locally. Only FreeBSD requires GitHub Actions minutes.
-
-### Resources
-
-- [act documentation](https://github.com/nektos/act)
-- [act CLI reference](https://nektosact.com/usage/index.html)
-- [GitHub Actions Docker images](https://github.com/nektos/act#default-runners)
