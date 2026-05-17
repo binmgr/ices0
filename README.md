@@ -1,89 +1,61 @@
 # ices0 - Multi-Platform Static Binary Builds
 
-Automated builds of static [ices0](https://github.com/Moonbase59/ices0) binaries for **Linux and FreeBSD** (amd64/arm64), plus a multi-arch Docker image with environment-variable-driven configuration.
+Automated builds of static [ices0](https://github.com/Moonbase59/ices0) binaries for **Linux and FreeBSD** (amd64/arm64), plus a multi-arch Docker image with environment-variable-driven configuration. ices0 is the original ices (version 0.x) that streams MP3 audio to an Icecast server — supporting real-time re-encoding, transcoding from Vorbis/FLAC/AAC, crossfading, and XML-based playlist management.
 
-## What is ices0?
+---
 
-ices0 is a source client for streaming MP3 audio to an Icecast server. It's the original ices (version 0.x) that supports MP3 format streaming.
+## 📦 Install
 
-### Key Features
+Download the latest release from [GitHub Releases](https://github.com/binmgr/ices0/releases/latest).
 
-- Stream MP3 files to Icecast servers
-- Real-time re-encoding at different bitrates
-- Transcoding from Vorbis, FLAC, and MP4/AAC to MP3
-- Crossfading between tracks
-- XML-based configuration
-- Playlist management (static files, shell scripts, Python, Perl)
-- Metadata and ReplayGain support
-- Proper UTF-8 metadata handling
+### Linux
 
-## Features in These Builds
-
-All optional features are compiled in:
-
-- ✅ XML configuration support (libxml2)
-- ✅ MP3 re-encoding (LAME)
-- ✅ Vorbis transcoding (libvorbis)
-- ✅ FLAC transcoding (libFLAC)
-- ✅ MP4/AAC transcoding (FAAD2)
-- ✅ TLS/SSL support (OpenSSL)
-- ✅ Proper UTF-8 metadata handling (built-in)
-- ❌ Python scripting (disabled in the fully static Linux build)
-- ❌ Perl scripting (disabled in the fully static Linux build)
-
-### Static Binaries
-
-All supported libraries in the Linux build are statically linked. The runtime image is Alpine-based (not scratch) because the entrypoint shell script and `tini` require a minimal OS.
-
-**Static (built-in)**:
-- All audio codecs (MP3/LAME, Vorbis, FLAC, AAC/FAAD2)
-- XML configuration (libxml2)
-- SSL/TLS support (OpenSSL)
-- All streaming libraries (libshout)
-
-**Not included in the static Linux build**:
-- Python playlist scripting
-- Perl playlist scripting
-
-## Downloads
-
-See [Releases](../../releases) for downloads.
-
-Container images are also published to `ghcr.io/binmgr/ices0` with these tags:
-
-- `latest` - newest released version
-- `{version}` - numbered release tag such as `1.3.2`
-- `{yymm}` - release month tag such as `2605`
-
-### Available Builds
-
-Each release includes binaries for:
-
-| Platform | Architectures | Notes |
-|----------|---------------|-------|
-| **Linux** | amd64, arm64 | Fully static (musl) |
-| **FreeBSD** | amd64, arm64 | Native build, dynamic system libs |
-
-Plus:
-- **checksums.txt** — SHA-256 checksums for all binaries
-
-## Quick Start
-
-### Binary
+| Arch | Binary |
+|------|--------|
+| amd64 | `ices0-linux-amd64` |
+| arm64 | `ices0-linux-arm64` |
 
 ```bash
-# Download the binary for your platform and architecture, e.g. Linux amd64:
-wget https://github.com/binmgr/ices0/releases/latest/download/ices0-linux-amd64
-
-chmod +x ices0-linux-amd64
-./ices0-linux-amd64 -V
+# Detect arch automatically
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+curl -LSsf "https://github.com/binmgr/ices0/releases/latest/download/ices0-linux-${ARCH}" \
+  -o /usr/local/bin/ices0 && chmod +x /usr/local/bin/ices0
 ```
 
-### Docker
+Fully static — zero dynamic dependencies. Works on any Linux distribution (glibc or musl).
+
+### FreeBSD
+
+| Arch | Binary |
+|------|--------|
+| amd64 | `ices0-freebsd-amd64` |
+| arm64 | `ices0-freebsd-arm64` |
 
 ```bash
-# Drop-in replacement for zerg13/ices — configure entirely via environment variables:
-docker run --rm \
+# Detect arch automatically
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+fetch -o /usr/local/bin/ices0 \
+  "https://github.com/binmgr/ices0/releases/latest/download/ices0-freebsd-${ARCH}"
+chmod +x /usr/local/bin/ices0
+```
+
+Dynamically linked against FreeBSD 15.0 system libraries. Python/Perl scripting requires `pkg install python3 perl5`.
+
+### Verify Integrity (Optional)
+
+```bash
+curl -LSsf https://github.com/binmgr/ices0/releases/latest/download/checksums.txt \
+  | sha256sum -c --ignore-missing
+```
+
+---
+
+## 🐳 Docker
+
+Drop-in replacement for `zerg13/ices` — configure entirely via environment variables:
+
+```bash
+docker run --rm -it \
   -e STREAM_HOST=icecast-server \
   -e STREAM_PASSWORD=changeme \
   -e STREAM_MOUNTPOINT=/music \
@@ -92,18 +64,19 @@ docker run --rm \
   ghcr.io/binmgr/ices0:latest
 ```
 
-See [docker/docker-compose.yml](docker/docker-compose.yml) for a full Compose stack.
+Container images are published to `ghcr.io/binmgr/ices0`:
 
-### Verify Integrity (Optional)
+| Tag | Description |
+|-----|-------------|
+| `latest` | Newest released version |
+| `{version}` | Numbered release (e.g. `1.3.2`) |
+| `{yymm}` | Release month (e.g. `2605`) |
 
-```bash
-wget https://github.com/binmgr/ices0/releases/latest/download/checksums.txt
-sha256sum -c checksums.txt --ignore-missing
-```
+See [docker/docker-compose.yml](docker/docker-compose.yml) for a full Compose stack including an Icecast server.
 
-## Docker Environment Variables
+### Docker Environment Variables
 
-The container image is a drop-in replacement for `zerg13/ices`. Configure it entirely via environment variables — no config file needed.
+Configure the container entirely via `STREAM_*` environment variables — no config file needed.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -133,11 +106,31 @@ The container image is a drop-in replacement for `zerg13/ices`. Configure it ent
 
 When `STREAM_PLAYLIST_TYPE=builtin`, the entrypoint automatically scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.flac`, `*.m4a`, `*.aac` files and generates the playlist.
 
-## Configuration
+---
+
+## ✨ Features
+
+All optional features are compiled in:
+
+- ✅ XML configuration support (libxml2)
+- ✅ MP3 re-encoding (LAME)
+- ✅ Vorbis transcoding (libvorbis)
+- ✅ FLAC transcoding (libFLAC)
+- ✅ MP4/AAC transcoding (FAAD2)
+- ✅ TLS/SSL support (OpenSSL)
+- ✅ Proper UTF-8 metadata handling (built-in)
+- ❌ Python scripting (disabled in the fully static Linux build)
+- ❌ Perl scripting (disabled in the fully static Linux build)
+
+Python and Perl playlist scripting are disabled in the fully static Linux build to keep the binary self-contained with no dynamic library dependencies. Shell script playlists and the built-in playlist module work in all builds.
+
+---
+
+## ⚙️ Configuration
 
 When using the Docker image, the entrypoint generates the config automatically from `STREAM_*` environment variables — no config file needed.
 
-For the bare binary, create an XML config file manually. The format used by this build (matching the Docker entrypoint output):
+For the bare binary, create an XML config file manually:
 
 ```xml
 <?xml version="1.0"?>
@@ -186,7 +179,7 @@ Then run:
 
 See also the [upstream example config](https://github.com/Moonbase59/ices0/blob/master/doc/ices.conf.dist).
 
-## Command-Line Options
+### Command-Line Options
 
 ```
 Usage: ices0 [options]
@@ -208,26 +201,29 @@ Options:
   -V           Display version information
 ```
 
-## Python/Perl Scripting
+---
 
-Python and Perl playlist scripting are disabled in the fully static Linux build to keep the binary self-contained with no dynamic library dependencies.
+## 🔍 Troubleshooting
 
-You can still use:
-- Static file playlists
-- Shell script playlists
-- Built-in playlist module
+**Binary won't execute**
 
-## Metadata UTF-8 Support
+```bash
+chmod +x ices0-*
+uname -m  # Should be x86_64 or aarch64/arm64
+```
 
-These builds include proper UTF-8 metadata handling for ID3 tags (MP3), Vorbis comments (FLAC/Vorbis), and other formats. The built-in conversion handles:
+**Garbled metadata characters (e.g. `ÿþ`)** — these builds include proper UTF-8 metadata handling for ID3 tags (MP3), Vorbis comments (FLAC/Vorbis), and other formats, covering UTF-16 (with BOM detection), ISO-8859-1, and UTF-8 passthrough. The issue is usually with older or improperly compiled versions.
 
-- UTF-16 (with byte-order mark detection)
-- ISO-8859-1 (Latin-1)
-- UTF-8 (passthrough)
+**Connection issues** — verify the Icecast server is running, the port is reachable, the password matches, and the mount point is available.
 
-If you're seeing garbled characters like `ÿþ` in your metadata, these properly compiled binaries should fix the issue.
+**Audio formats:**
 
-## Build System
+- Input: MP3, Vorbis (`.ogg`), FLAC (`.flac`), MP4/AAC (`.m4a`, `.aac`)
+- Output: MP3 only (this is ices0, not ices2 — for Vorbis output use [ices2](https://icecast.org/ices/))
+
+---
+
+## 🛠️ Development
 
 This repository contains three GitHub Actions workflows: [build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, [build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases binaries, and [security.yml](.github/workflows/security.yml) runs secret scanning, workflow policy checks, and container image scanning.
 
@@ -242,89 +238,16 @@ Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced
 5. Version is extracted from upstream `configure.ac` at build time
 6. Release is created with all binaries, checksums, and container image tags `latest`, `{version}`, `{yymm}`
 
-### What Gets Built
-
-For Linux (statically linked into the binary):
-- zlib, libogg, libvorbis, libFLAC, libmp3lame, libfaad2, OpenSSL, libshout, libxml2
-- ices0 with all the above
-
-For FreeBSD (dynamically linked against pkg-installed system libs):
-- All of the above via `pkg install`
-
 ### Build Times
 
-- **Linux amd64**: ~30–45 min (container-based)
-- **Linux arm64**: ~45–60 min (cross-compilation with Bootlin toolchain)
-- **FreeBSD amd64/arm64**: ~40–60 min each (QEMU VM overhead)
+| Job | Approximate Time |
+|-----|-----------------|
+| Linux amd64 | ~30–45 min (container-based) |
+| Linux arm64 | ~45–60 min (cross-compilation with Bootlin toolchain) |
+| FreeBSD amd64 | ~40–60 min (QEMU VM overhead) |
+| FreeBSD arm64 | ~40–60 min (QEMU VM overhead) |
 
-## Platform-Specific Notes
-
-### Linux
-- Fully static — zero dynamic dependencies
-- Works on any Linux distribution (glibc or musl)
-
-### FreeBSD
-- Dynamically linked against FreeBSD 15.0 system libraries
-- Python/Perl scripting requires `pkg install python3 perl5`
-
-## Troubleshooting
-
-### Binary won't execute
-
-```bash
-# Make sure it's executable
-chmod +x ices0-*
-
-# Check architecture matches your system
-uname -m  # Should be x86_64 or aarch64/arm64
-```
-
-### Metadata issues
-
-Make sure you're using these binaries which have proper UTF-8 conversion built-in. The issue is usually with older or improperly compiled versions.
-
-### Connection issues
-
-Check your Icecast server configuration:
-- Server is running
-- Port is accessible
-- Password matches
-- Mount point is available
-
-### Audio format issues
-
-These builds support:
-- **Input**: MP3, Vorbis (.ogg), FLAC (.flac), MP4/AAC (.m4a, .aac)
-- **Output**: MP3 only (this is ices0, not ices2)
-
-For Vorbis output, use [ices2](https://icecast.org/ices/).
-
-## Credits
-
-- **ices0 original**: [Xiph.Org Foundation](https://www.xiph.org/)
-- **ices0 enhanced**: [Moonbase59](https://github.com/Moonbase59/ices0)
-- **Multi-platform builds**: This repository
-
-## License
-
-- **ices0**: GPL-2.0 (see [LICENSE.md](LICENSE.md))
-- **Build workflow**: MIT License
-
-## Links
-
-- [Upstream ices0 source](https://github.com/Moonbase59/ices0)
-- [Official ices documentation](https://icecast.org/ices/)
-- [Icecast server](https://icecast.org/)
-- [Configuration examples](https://github.com/Moonbase59/ices0/tree/master/doc)
-
-## Support
-
-For issues with:
-- **ices0 itself**: Report to [upstream](https://github.com/Moonbase59/ices0/issues)
-- **These builds**: Report to [this repository](../../issues)
-- **Icecast server**: See [Icecast docs](https://icecast.org/)
-
-## Local Testing with `act`
+### Local Testing with `act`
 
 Test workflows locally using [`act`](https://github.com/nektos/act):
 
@@ -343,3 +266,16 @@ FreeBSD builds and the release job require live GitHub Actions (QEMU VM provisio
 docker run --rm -it ghcr.io/binmgr/ices0:build sh
 # Then: build-ices0 amd64
 ```
+
+---
+
+## 📄 License
+
+- **ices0**: GPL-2.0 — see [LICENSE.md](LICENSE.md)
+- **Build workflow**: MIT License
+
+**Credits:** [Xiph.Org Foundation](https://www.xiph.org/) (ices0 original) · [Moonbase59](https://github.com/Moonbase59/ices0) (ices0 enhanced) · this repository (multi-platform builds)
+
+**Links:** [Upstream ices0 source](https://github.com/Moonbase59/ices0) · [Official ices documentation](https://icecast.org/ices/) · [Icecast server](https://icecast.org/) · [Configuration examples](https://github.com/Moonbase59/ices0/tree/master/doc)
+
+For ices0 bugs report to [upstream](https://github.com/Moonbase59/ices0/issues). For build issues report to [this repository](../../issues).
