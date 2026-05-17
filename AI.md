@@ -22,6 +22,7 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 │   │   ├── bug_report.md
 │   │   └── feature_request.md
 │   ├── pull_request_template.md
+│   ├── SECURITY.md
 │   └── workflows/
 │       ├── build-env-image.yml    # Builds ghcr.io/{project_org}/{project_name}:build
 │       ├── build-linux-binaries.yml  # Builds binaries + release + runtime image
@@ -33,7 +34,6 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 ├── IDEA.md                   # Project plan (WHAT)
 ├── renovate.json             # Renovate dependency update config
 ├── release.txt               # Version source of truth (semver, no v prefix)
-├── SECURITY.md
 └── SPEC.md                   # Project-specific rule overrides
 ```
 
