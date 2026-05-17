@@ -1,0 +1,9 @@
+# Global owners — review required for everything not covered below
+* @binmgr
+
+# Workflow changes require maintainer sign-off
+.github/ @binmgr
+
+# Security-sensitive files
+SECURITY.md @binmgr
+docker/ @binmgr

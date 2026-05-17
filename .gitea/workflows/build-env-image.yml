@@ -3,17 +3,42 @@ name: Build Environment Image
 on:
   push:
     branches: [main, master]
-    paths:
-      - 'docker/Dockerfile.build'
-      - '.gitea/workflows/build-env-image.yml'
+    paths: ['docker/Dockerfile.build', '.gitea/workflows/build-env-image.yml']
   schedule:
     - cron: '0 0 1 */3 *'
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ gitea.workflow }}-${{ gitea.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Build build environment image
-        run: docker build -f docker/Dockerfile.build -t local/ices0:build .
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Compute registry host
+        id: reg
+        run: |
+          echo "host=$(printf '%s' "${{ gitea.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Gitea registry
+        run: |
+          echo "${{ secrets.GITEA_TOKEN }}" | \
+            docker login "${{ steps.reg.outputs.host }}" \
+              -u "${{ gitea.repository_owner }}" --password-stdin
+
+      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: docker/Dockerfile.build
+          push: true
+          tags: ${{ steps.reg.outputs.host }}/${{ gitea.repository }}:build
+          cache-from: type=registry,ref=${{ steps.reg.outputs.host }}/${{ gitea.repository }}:build-cache
+          cache-to: type=registry,ref=${{ steps.reg.outputs.host }}/${{ gitea.repository }}:build-cache,mode=max

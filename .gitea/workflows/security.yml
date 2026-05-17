@@ -12,12 +12,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ gitea.workflow }}-${{ gitea.ref }}
   cancel-in-progress: true
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: binmgr/ices0
 
 jobs:
   secret-scan:
@@ -27,11 +23,12 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - uses: trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab # v3.95.3
-        with:
-          path: .
-          base: ${{ github.event.repository.default_branch }}
-          extra_args: --only-verified
+      - name: truffleHog scan
+        run: |
+          docker run --rm --name "trufflehog-$RANDOM" \
+            -v "${{ gitea.workspace }}:/repo" \
+            trufflesecurity/trufflehog:latest \
+            git file:///repo --since-commit HEAD~1 --only-verified --fail
 
   workflow-policy:
     name: Workflow policy check
@@ -41,7 +38,7 @@ jobs:
       - name: Verify all actions are SHA-pinned
         run: |
           bad=0
-          for file in .github/workflows/*.yml .gitea/workflows/*.yml .forgejo/workflows/*.yml; do
+          for file in .gitea/workflows/*.yml .forgejo/workflows/*.yml .github/workflows/*.yml; do
             [ -f "$file" ] || continue
             while IFS= read -r line; do
               if printf '%s' "$line" | grep -qE '^\s+uses:\s+[a-zA-Z0-9_.-]+/[a-zA-Z0-9_./-]+@'; then
@@ -63,10 +60,14 @@ jobs:
     name: Trivy container scan
     runs-on: ubuntu-latest
     steps:
+      - name: Compute Gitea registry host
+        id: reg
+        run: |
+          echo "host=$(printf '%s' "${{ gitea.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
       - name: Install Trivy
         run: |
           curl -qLSsf https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
       - name: Scan published image
         run: |
           trivy image --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            "${{ steps.reg.outputs.host }}/${{ gitea.repository }}:latest"

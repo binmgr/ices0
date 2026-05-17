@@ -17,16 +17,24 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 │       └── usr/local/bin/
 │           └── entrypoint.sh # env var → XML config → exec ices0
 ├── .github/
-│   ├── dependabot.yml
+│   ├── CODEOWNERS
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   ├── pull_request_template.md
 │   └── workflows/
 │       ├── build-env-image.yml    # Builds ghcr.io/{project_org}/{project_name}:build
 │       ├── build-linux-binaries.yml  # Builds binaries + release + runtime image
-│       └── security.yml           # Trivy container scan
+│       └── security.yml           # secret-scan + workflow-policy + image-scan
+├── .dockerignore
 ├── Dockerfile                # Runtime image (Alpine + tini + entrypoint.sh + static binary)
 ├── AI.md                     # This file — implementation spec
-├── IDEA.md                   # Project plan (WHAT)
 ├── CLAUDE.md                 # Loader
-└── release.txt               # Version source of truth (semver, no v prefix)
+├── IDEA.md                   # Project plan (WHAT)
+├── renovate.json             # Renovate dependency update config
+├── release.txt               # Version source of truth (semver, no v prefix)
+├── SECURITY.md
+└── SPEC.md                   # Project-specific rule overrides
 ```
 
 ---
@@ -141,7 +149,7 @@ The entrypoint generates `/ices/ices.conf` from `STREAM_*` env vars, optionally 
 
 ## Action SHA pinning
 
-All third-party GitHub Actions **must** be pinned to a full commit SHA. Use the verified node24 SHAs from `~/.claude/memory/cicd_conventions.md`. Update SHAs only when Dependabot opens a PR.
+All third-party GitHub Actions **must** be pinned to a full commit SHA. Use the verified node24 SHAs from `~/.claude/memory/cicd_conventions.md`. Update SHAs only when Renovate opens a PR.
 
 Current pinned SHAs:
 - `actions/checkout` → `de0fac2e4500dabe0009e67214ff5f5447ce83dd` # v6.0.2
@@ -156,15 +164,19 @@ Current pinned SHAs:
 
 ## Security workflow (`security.yml`)
 
-- **Trigger**: push to main/master, pull_request
-- Runs Trivy against the published `ghcr.io/{project_org}/{project_name}:latest` image
-- Critical/high CVEs in direct deps are hard failures
+- **Trigger**: push to main/master, pull_request, weekly schedule, `workflow_dispatch`
+- Always-required jobs (every run, no conditions):
+  - `secret-scan` — truffleHog (`trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab`, v3.95.3); `fetch-depth: 0`; `--only-verified`
+  - `workflow-policy` — inline shell verifying all `uses:` lines are pinned to 40-char SHAs; blocks `pull_request_target`
+- Conditional jobs:
+  - `image-scan` — Trivy against the published `ghcr.io/{project_org}/{project_name}:latest`; `--ignore-unfixed --severity CRITICAL,HIGH`
+- Critical/high CVEs are hard failures
 
 ---
 
-## Dependabot (`dependabot.yml`)
+## Renovate (`renovate.json`)
 
-Covers `github-actions` ecosystem only (no language package managers in use).
+Covers `github-actions` ecosystem (SHA pinning) for all five CI/CD providers. No language package managers in use.
 
 ---
 

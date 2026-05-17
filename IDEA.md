@@ -21,18 +21,9 @@ build_image: ghcr.io/binmgr/ices0:build
 - macOS: not built
 - Windows: not built
 
-### Build pipeline
-
-1. `build-env-image.yml` — builds and pushes `ghcr.io/binmgr/ices0:build` when `docker/Dockerfile.build` or its workflow file changes, on a quarterly schedule, or manually
-2. `build-linux-binaries.yml` — triggered by successful `Build Environment Image` workflow run on main/master, or manually; builds Linux and FreeBSD binaries; creates GitHub release; pushes multi-arch container image
-
-### Versioning
-
-Version is extracted from upstream `configure.ac` at build time using `m4_define(ICES_MAJOR/MINOR/MICRO, N)` pattern. GitHub release tag: `v{version}`. Container tags: `latest`, `{version}`, `{yymm}` (YYMM of release date).
-
 ### Container image
 
-The runtime image is multi-arch (`linux/amd64`, `linux/arm64`) based on Alpine with tini as the init process. `docker/entrypoint.sh` generates an ices0 XML config from `STREAM_*` environment variables before exec-ing ices0, allowing the image to be used as a drop-in for `zerg13/ices`.
+The runtime image is multi-arch (`linux/amd64`, `linux/arm64`). It accepts `STREAM_*` environment variables to configure the ices0 XML config at startup, allowing the image to be a drop-in replacement for `zerg13/ices`.
 
 #### Environment variables
 
@@ -66,16 +57,7 @@ When `STREAM_PLAYLIST_TYPE=builtin`, `entrypoint.sh` auto-scans `STREAM_MEDIA_FO
 
 ### Release integrity
 
-Every GitHub release includes `checksums.txt` (SHA-256) for all release artifacts.
-
-### CI/CD rules
-
-- All third-party GitHub Actions pinned to full commit SHAs
-- Workflow-level `permissions: contents: read` baseline; write grants only on the release job
-- Concurrency groups on every workflow to cancel stale runs (except release job: `cancel-in-progress: false`)
-- Artifact `retention-days: 7` for build artifacts
-- `dependabot.yml` covering `github-actions` ecosystem
-- `security.yml` running Trivy container scan on the published image
+Every release must include a `checksums.txt` (SHA-256) for all artifacts.
 
 ### Security
 
