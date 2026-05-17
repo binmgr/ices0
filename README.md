@@ -39,7 +39,7 @@ fetch -o /usr/local/bin/ices0 \
 chmod +x /usr/local/bin/ices0
 ```
 
-Dynamically linked against FreeBSD 15.0 system libraries. Python/Perl scripting requires `pkg install python3 perl5`.
+Dynamically linked against FreeBSD system libraries. Python/Perl scripting requires `pkg install python3 perl5`.
 
 ### Verify Integrity (Optional)
 
