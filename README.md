@@ -33,7 +33,7 @@ All optional features are compiled in:
 
 ### Static Binaries
 
-All supported libraries in the Linux build are statically linked so the runtime image can stay `FROM scratch`.
+All supported libraries in the Linux build are statically linked. The runtime image is Alpine-based (not scratch) because the entrypoint shell script and `tini` require a minimal OS.
 
 **Static (built-in)**:
 - All audio codecs (MP3/LAME, Vorbis, FLAC, AAC/FAAD2)
@@ -135,37 +135,45 @@ When `STREAM_PLAYLIST_TYPE=builtin`, the entrypoint automatically scans `STREAM_
 
 ## Configuration
 
-Create an `ices.xml` configuration file. See the [upstream example](https://github.com/Moonbase59/ices0/blob/master/doc/ices.conf.dist):
+When using the Docker image, the entrypoint generates the config automatically from `STREAM_*` environment variables — no config file needed.
+
+For the bare binary, create an XML config file manually. The format used by this build (matching the Docker entrypoint output):
 
 ```xml
 <?xml version="1.0"?>
 <ices:Configuration xmlns:ices="http://www.icecast.org/projects/ices">
-  <Server>
-    <Hostname>localhost</Hostname>
-    <Port>8000</Port>
-    <Password>hackme</Password>
-    <Protocol>http</Protocol>
-  </Server>
-
+  <Playlist>
+    <Randomize>0</Randomize>
+    <Type>builtin</Type>
+    <File>/ices/playlist.txt</File>
+    <Crossfade>2</Crossfade>
+    <Module>ices</Module>
+  </Playlist>
   <Execution>
     <Background>0</Background>
     <Verbose>1</Verbose>
+    <Timestamp>0</Timestamp>
+    <BaseDirectory>/tmp</BaseDirectory>
   </Execution>
-
   <Stream>
     <Server>
-      <Mount>/stream.mp3</Mount>
-      <Name>My Audio Stream</Name>
-      <Genre>Various</Genre>
-      <Description>Audio stream powered by ices0</Description>
+      <Hostname>localhost</Hostname>
+      <Port>8000</Port>
+      <Password>hackme</Password>
+      <Protocol>http</Protocol>
     </Server>
-
-    <Playlist>
-      <File>/path/to/playlist.txt</File>
-      <Type>basic</Type>
-      <Module>playlist_basic</Module>
-      <Randomize>1</Randomize>
-    </Playlist>
+    <Mountpoint>/stream</Mountpoint>
+    <Name>My Audio Stream</Name>
+    <Genre>Various</Genre>
+    <Description>Audio stream powered by ices0</Description>
+    <URL></URL>
+    <Public>1</Public>
+    <Encode>
+      <Reencode>0</Reencode>
+      <Channels>2</Channels>
+      <Samplerate>44100</Samplerate>
+      <Bitrate>320</Bitrate>
+    </Encode>
   </Stream>
 </ices:Configuration>
 ```
@@ -175,6 +183,8 @@ Then run:
 ```bash
 ./ices0 -c ices.xml
 ```
+
+See also the [upstream example config](https://github.com/Moonbase59/ices0/blob/master/doc/ices.conf.dist).
 
 ## Command-Line Options
 
@@ -200,7 +210,7 @@ Options:
 
 ## Python/Perl Scripting
 
-Python and Perl playlist scripting are disabled in the fully static Linux build so the binary stays scratch-compatible.
+Python and Perl playlist scripting are disabled in the fully static Linux build to keep the binary self-contained with no dynamic library dependencies.
 
 You can still use:
 - Static file playlists
@@ -219,7 +229,7 @@ If you're seeing garbled characters like `ÿþ` in your metadata, these properly
 
 ## Build System
 
-This repository contains two GitHub Actions workflows: [.github/workflows/build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, and [.github/workflows/build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases binaries.
+This repository contains three GitHub Actions workflows: [build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, [build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases binaries, and [security.yml](.github/workflows/security.yml) runs secret scanning, workflow policy checks, and container image scanning.
 
 Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced from [docker/Dockerfile.build](docker/Dockerfile.build). FreeBSD builds run in native QEMU VMs via `vmactions/freebsd-vm`.
 
@@ -316,20 +326,17 @@ For issues with:
 
 ## Local Testing with `act`
 
-Test Linux builds locally using [`act`](https://github.com/nektos/act):
+Test workflows locally using [`act`](https://github.com/nektos/act):
 
 ```bash
-# Test Linux amd64 build
-act -j build-linux --matrix arch:amd64
+# List all jobs in a workflow
+act --list -W .github/workflows/build-linux-binaries.yml
 
-# Test Linux arm64 build
-act -j build-linux --matrix arch:arm64
-
-# List all jobs
-act -l
+# Run all Linux build matrix jobs
+act -j build-linux -W .github/workflows/build-linux-binaries.yml
 ```
 
-FreeBSD and the release job require live GitHub Actions (VM and GitHub release API).
+FreeBSD builds and the release job require live GitHub Actions (QEMU VM provisioning and GitHub release API).
 
 ```bash
 # Manual test in the build container
