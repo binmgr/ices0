@@ -52,8 +52,8 @@ jobs:
                 fi
               fi
             done < "$file"
-            if grep -q 'pull_request_target' "$file"; then
-              echo "::error file=${file}::Dangerous trigger 'pull_request_target' found"
+            if grep -qE '^\s*pull_request_target\s*:' "$file"; then
+              echo "::error file=${file}::Dangerous trigger pull_request_target found"
               bad=1
             fi
           done
