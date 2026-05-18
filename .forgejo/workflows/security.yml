@@ -1,0 +1,73 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ forgejo.workflow }}-${{ forgejo.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret scan (truffleHog)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: truffleHog scan
+        run: |
+          docker run --rm --name "trufflehog-$RANDOM" \
+            -v "${{ forgejo.workspace }}:/repo" \
+            trufflesecurity/trufflehog:latest \
+            git file:///repo --since-commit HEAD~1 --only-verified --fail
+
+  workflow-policy:
+    name: Workflow policy check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Verify all actions are SHA-pinned
+        run: |
+          bad=0
+          for file in .forgejo/workflows/*.yml .gitea/workflows/*.yml .github/workflows/*.yml; do
+            [ -f "$file" ] || continue
+            while IFS= read -r line; do
+              if printf '%s' "$line" | grep -qE '^\s+uses:\s+[a-zA-Z0-9_.-]+/[a-zA-Z0-9_./-]+@'; then
+                sha=$(printf '%s' "$line" | sed -E 's/.*@([^ #]+).*/\1/')
+                if ! printf '%s' "$sha" | grep -qxE '[0-9a-f]{40}'; then
+                  echo "::error file=${file}::Unpinned action (tag/branch not SHA): $( printf '%s' "$line" | xargs )"
+                  bad=1
+                fi
+              fi
+            done < "$file"
+            if grep -qE '^\s*pull_request_target\s*:' "$file"; then
+              echo "::error file=${file}::Dangerous trigger pull_request_target found"
+              bad=1
+            fi
+          done
+          [ "$bad" -eq 0 ] || exit 1
+
+  image-scan:
+    name: Trivy container scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute Forgejo registry host
+        id: reg
+        run: |
+          echo "host=$(printf '%s' "${{ forgejo.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
+      - name: Install Trivy
+        run: |
+          curl -qLSsf https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+      - name: Scan published image
+        run: |
+          trivy image --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH \
+            "${{ steps.reg.outputs.host }}/${{ forgejo.repository }}:latest"

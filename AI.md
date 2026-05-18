@@ -16,6 +16,16 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 │   └── rootfs/               # Files copied into runtime image (mirrors Linux FHS)
 │       └── usr/local/bin/
 │           └── entrypoint.sh # env var → XML config → exec ices0
+├── .gitea/
+│   └── workflows/
+│       ├── build-env-image.yml    # Gitea-native mirror of GitHub build-env-image
+│       ├── build-linux-binaries.yml  # Gitea-native mirror of GitHub build-linux-binaries
+│       └── security.yml           # Gitea-native mirror of GitHub security
+├── .forgejo/
+│   └── workflows/
+│       ├── build-env-image.yml    # Forgejo-native (forgejo.* vars)
+│       ├── build-linux-binaries.yml  # Forgejo-native
+│       └── security.yml           # Forgejo-native
 ├── .github/
 │   ├── CODEOWNERS
 │   ├── ISSUE_TEMPLATE/
