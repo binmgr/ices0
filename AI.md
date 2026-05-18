@@ -32,6 +32,7 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 ├── AI.md                     # This file — implementation spec
 ├── CLAUDE.md                 # Loader
 ├── IDEA.md                   # Project plan (WHAT)
+├── Makefile                  # Local build convenience targets
 ├── renovate.json             # Renovate dependency update config
 ├── release.txt               # Version source of truth (semver, no v prefix)
 └── SPEC.md                   # Project-specific rule overrides

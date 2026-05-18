@@ -229,6 +229,16 @@ This repository contains three GitHub Actions workflows: [build-env-image.yml](.
 
 Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced from [docker/Dockerfile.build](docker/Dockerfile.build). FreeBSD builds run in native QEMU VMs via `vmactions/freebsd-vm`.
 
+### Make Targets
+
+| Target | Description |
+|--------|-------------|
+| `make` / `make help` | Show all targets and current version |
+| `make build-env` | Build and push the Docker build environment image (`docker/Dockerfile.build`) |
+| `make build` | Build ices0 binary for the host architecture into `binaries/` |
+| `make docker` | Build the runtime image locally for testing (single-arch, `--load`) |
+| `make clean` | Remove `binaries/` |
+
 ### How It Works
 
 1. `build-env-image.yml` builds `ghcr.io/binmgr/ices0:build` when `docker/Dockerfile.build` changes, quarterly, or manually
@@ -265,6 +275,21 @@ FreeBSD builds and the release job require live GitHub Actions (QEMU VM provisio
 # Manual test in the build container
 docker run --rm -it ghcr.io/binmgr/ices0:build sh
 # Then: build-ices0 amd64
+```
+
+### 🐳 Docker build
+
+Build the runtime image locally (requires `binaries/ices0-linux-{arch}` from `make build` first):
+
+```bash
+make build       # produces binaries/ices0-linux-amd64 (or arm64)
+make docker      # builds ghcr.io/binmgr/ices0:dev locally
+```
+
+To build and push the Docker build environment image:
+
+```bash
+make build-env   # builds + pushes ghcr.io/binmgr/ices0:build (multi-arch)
 ```
 
 ---

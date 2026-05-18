@@ -5,5 +5,5 @@
 .github/ @binmgr
 
 # Security-sensitive files
-SECURITY.md @binmgr
+.github/SECURITY.md @binmgr
 docker/ @binmgr
