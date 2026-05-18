@@ -12,3 +12,27 @@ build context is the repo root (binaries are referenced as `COPY ices0-linux-${T
 
 Moving the Dockerfile to `docker/Dockerfile` would require either changing how binaries are staged or passing
 a different build context. This exception is intentional — do not "fix" it by moving the Dockerfile.
+
+## Custom build toolchain
+
+Global conventions prescribe language-specific Alpine base images (`golang:alpine`, `rust:alpine`). This project
+builds a **C autotools project** (ices0), so the build image (`docker/Dockerfile.build`) uses `alpine:latest`
+as its base — there is no `c:alpine` official image.
+
+The arm64 build does not use an Alpine cross-compiler package. Instead it downloads a
+**Bootlin aarch64-musl cross-compilation toolchain** at image-build time:
+
+```
+aarch64--musl--stable-2025.08-1  (from toolchains.bootlin.com)
+```
+
+This is required because Alpine's `cross-compile-aarch64` packages do not produce fully static musl binaries
+compatible with the `FROM scratch` runtime image. The Bootlin toolchain is pinned by filename in the
+`BOOTLIN_AARCH64_MUSL_URL` build arg — update it deliberately when upgrading.
+
+The arm64 static dependency stack (zlib, xz, openssl, libxml2, libogg, libvorbis, faad2, flac, lame, mp4v2,
+libshout) is built from source inside the image using that cross-compiler. Versions are pinned inside
+`build-ices0` — change them intentionally, never automatically.
+
+The build image tag is `:build` (rolling) per the dev-images convention. The `BOOTLIN_AARCH64_MUSL_URL`
+arg is the version pin — do not additionally pin the base `alpine:latest` tag.
