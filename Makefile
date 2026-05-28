@@ -11,7 +11,7 @@ REGISTRY    := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 BUILD_IMAGE ?= $(REGISTRY):build
 HOST_ARCH   := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 
-.PHONY: help build-env build docker test clean
+.PHONY: help build docker test clean
 
 help: ## Show this help message
 	@printf '\n\033[1;37m  %s v%s\033[0m\n\n' "$(PROJECTNAME)" "$(VERSION)"
@@ -19,32 +19,18 @@ help: ## Show this help message
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 	@printf '\n'
 
-test: ## Build the build environment image locally and compile ices0 for the host arch (no push)
-	docker build -f docker/Dockerfile.build -t $(REGISTRY):build-test .
-	@mkdir -p binaries
-	docker run --rm \
-		--name $(PROJECTNAME)-test-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
-		-v "$(PWD)/binaries:/output" \
-		$(REGISTRY):build-test \
-		build-ices0 $(HOST_ARCH)
-	@echo ""
-	@ls -lh binaries/ices0-linux-$(HOST_ARCH)
+test: build ## Alias for build
 
-build-env: ## Build the Docker build environment image (docker/Dockerfile.build)
-	docker buildx build \
-		--platform linux/amd64,linux/arm64 \
-		-f docker/Dockerfile.build \
-		-t $(BUILD_IMAGE) \
-		--push \
-		.
-
-build: ## Build ices0 binary for the host architecture (output: binaries/)
+build: ## Build the build environment image then compile ices0 for the host architecture (output: binaries/)
+	docker build -f docker/Dockerfile.build -t $(BUILD_IMAGE) .
 	@mkdir -p binaries
 	docker run --rm -it \
 		--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 		-v "$(PWD)/binaries:/output" \
 		$(BUILD_IMAGE) \
 		build-ices0 $(HOST_ARCH)
+	@echo ""
+	@ls -lh binaries/ices0-linux-$(HOST_ARCH)
 
 docker: ## Build the runtime image locally for testing (single-arch, --load)
 	@cp binaries/ices0-linux-$(HOST_ARCH) ices0-linux-$(HOST_ARCH)

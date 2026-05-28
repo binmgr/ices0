@@ -250,9 +250,8 @@ Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced
 | Target | Description |
 |--------|-------------|
 | `make` / `make help` | Show all targets and current version |
-| `make test` | Build the build environment image locally and compile ices0 for host arch — validates `docker/Dockerfile.build` without pushing |
-| `make build-env` | Build and push the Docker build environment image (`docker/Dockerfile.build`) |
-| `make build` | Build ices0 binary for the host architecture into `binaries/` using the published build image |
+| `make build` | Build the build environment image then compile ices0 for the host architecture into `binaries/` |
+| `make test` | Alias for `make build` |
 | `make docker` | Build the runtime image locally for testing (single-arch, `--load`) |
 | `make clean` | Remove `binaries/` |
 
