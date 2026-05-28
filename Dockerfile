@@ -1,5 +1,5 @@
 FROM alpine:latest
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini python3 perl
 ARG TARGETARCH
 COPY ices0-linux-${TARGETARCH} /usr/local/bin/ices0
 COPY docker/rootfs/ /

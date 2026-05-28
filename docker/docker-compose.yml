@@ -65,6 +65,8 @@ services:
       STREAM_REENCODED_SAMPLERATE: 44100
       STREAM_RANDOMIZE: 1
       STREAM_CROSSFADE: 2
+      STREAM_MIN_CROSSFADE: 0
+      STREAM_CROSS_MIX: 0
       STREAM_VERBOSE: 0
       STREAM_BACKGROUND: 0
       STREAM_PLAYLIST_TYPE: builtin
@@ -73,6 +75,7 @@ services:
       STREAM_CONFIG: /ices/ices.conf
       STREAM_PLAYLIST: /ices/playlist.txt
     volumes:
+      - 'ices-data:/ices'
       - './volumes/data/media/music:/media:ro'
     depends_on:
       server:
@@ -84,3 +87,6 @@ networks:
   icecast:
     name: icecast
     driver: bridge
+
+volumes:
+  ices-data:

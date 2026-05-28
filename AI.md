@@ -138,7 +138,7 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 ## Runtime Dockerfile
 
 - **Base**: `FROM alpine:latest` (not scratch — entrypoint.sh requires a shell)
-- **Init**: `tini` installed via `apk add --no-cache tini`
+- **Init**: `tini` installed via `apk add --no-cache tini python3 perl` — python3 and perl are included so `STREAM_PLAYLIST_TYPE=python` and `STREAM_PLAYLIST_TYPE=perl` work out of the box
 - **Binary**: `COPY ices0-linux-${TARGETARCH} /usr/local/bin/ices0`
 - **Rootfs**: `COPY docker/rootfs/ /` — copies `entrypoint.sh` to `/usr/local/bin/entrypoint.sh`
 - **Startup chain**: `ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/entrypoint.sh"]`
@@ -154,7 +154,19 @@ The entrypoint generates `/ices/ices.conf` from `STREAM_*` env vars, optionally 
 - `STREAM_PRIVATE` is inverted to `<Public>`: `STREAM_PRIVATE=0` → `<Public>1</Public>`
 - When `STREAM_PLAYLIST_TYPE=builtin`: `find $STREAM_MEDIA_FOLDER -name '*.mp3' -o -name '*.ogg' ...` sorted into `STREAM_PLAYLIST`
 - Config written to `STREAM_CONFIG` (default `/ices/ices.conf`)
-- Exec: `exec /usr/local/bin/ices0 -c "${STREAM_CONFIG}"`
+- Exec: `exec /usr/local/bin/ices0 -c "${STREAM_CONFIG}"` — ices0 exits when playlist is exhausted; `restart: always` in Compose causes the container to restart, regenerating the same sorted playlist and looping indefinitely
+- `/ices` is a named Docker volume — `playlist.txt` and `ices.conf` persist across restarts and are inspectable
+
+### Env vars
+
+| Variable | Default | XML element | Notes |
+|---|---|---|---|
+| `STREAM_RANDOMIZE` | `0` | `<Randomize>` | |
+| `STREAM_CROSSFADE` | `2` | `<Crossfade>` | seconds |
+| `STREAM_MIN_CROSSFADE` | `0` | `<MinCrossfade>` | min track length before crossfade kicks in |
+| `STREAM_CROSS_MIX` | `0` | `<CrossMix>` | crossfade at 100% volume |
+| `STREAM_PLAYLIST_TYPE` | `builtin` | `<Type>` | `builtin`, `python`, `perl`, `script` |
+| `STREAM_INTERPRETER_MODULE` | `ices` | `<Module>` | module name for python/perl handlers |
 
 ---
 
