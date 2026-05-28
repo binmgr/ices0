@@ -307,7 +307,9 @@ CACHE
             --with-openssl="${ARM64_PREFIX}" \
             --cache-file=config.cache
         make -j$(nproc) libpython3.12.a
-        make install
+        # Install only the static library and headers — extension modules
+        # (including _ssl) are not needed for ices0's embedded Python use.
+        make libinstall inclinstall
     )
     # python3-config from cross-built Python is an arm64 binary; replace with a
     # host-runnable wrapper that returns the correct arm64 compile/link flags.
