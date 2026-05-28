@@ -147,7 +147,7 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 
 ## `docker/rootfs/usr/local/bin/entrypoint.sh`
 
-The entrypoint generates `/ices/ices.conf` from `STREAM_*` env vars, optionally scans `STREAM_MEDIA_FOLDER` for audio files to build a playlist, then execs ices0.
+The entrypoint generates `/config/ices0/ices.conf` from `STREAM_*` env vars, optionally scans `STREAM_MEDIA_FOLDER` for audio files to build a playlist, then execs ices0.
 
 ### Config generation
 
@@ -221,4 +221,4 @@ Follows `~/.claude/memory/dockerfile_conventions.md`:
 - Hardcoded sane defaults; works with zero `.env`
 - Users override by editing the file
 - All log drivers use `json-file` with `max-size: 5m`, `max-file: 1`
-- Named volumes for persistent data; tmpfs for ephemeral state
+- Named volumes for persistent data (`/data/ices0`); config is ephemeral (`/config/ices0`)

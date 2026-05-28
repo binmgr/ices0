@@ -141,7 +141,7 @@ For the bare binary, create an XML config file manually:
   <Playlist>
     <Randomize>0</Randomize>
     <Type>builtin</Type>
-    <File>/ices/playlist.txt</File>
+    <File>/data/ices0/playlist.txt</File>
     <Crossfade>2</Crossfade>
     <MinCrossfade>0</MinCrossfade>
     <CrossMix>0</CrossMix>

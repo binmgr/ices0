@@ -45,13 +45,16 @@ The runtime image is multi-arch (`linux/amd64`, `linux/arm64`). It accepts `STRE
 | `STREAM_REENCODED_SAMPLERATE` | `44100` | Output sample rate (Hz) |
 | `STREAM_RANDOMIZE` | `0` | `1` = randomize playlist order |
 | `STREAM_CROSSFADE` | `2` | Crossfade duration in seconds (`0` = off) |
+| `STREAM_MIN_CROSSFADE` | `0` | Minimum track length (s) before crossfade activates |
+| `STREAM_CROSS_MIX` | `0` | `1` = crossfade at 100% volume |
 | `STREAM_VERBOSE` | `0` | `1` = verbose logging |
 | `STREAM_BACKGROUND` | `0` | `1` = daemon mode (avoid in containers) |
-| `STREAM_PLAYLIST_TYPE` | `builtin` | Playlist module type |
+| `STREAM_PLAYLIST_TYPE` | `builtin` | `builtin`, `python`, `perl`, or `script` |
 | `STREAM_INTERPRETER_MODULE` | `ices` | Playlist interpreter module name |
 | `STREAM_MEDIA_FOLDER` | `/media` | Directory scanned for audio files |
-| `STREAM_CONFIG` | `/ices/ices.conf` | Path for generated XML config |
-| `STREAM_PLAYLIST` | `/ices/playlist.txt` | Path for generated playlist |
+| `STREAM_CONFIG` | `/config/ices0/ices.conf` | Path for generated XML config (ephemeral) |
+| `STREAM_PLAYLIST` | `/data/ices0/playlist.txt` | Path for generated playlist |
+| `STREAM_CUE_FILE` | `/data/ices0/ices.cue` | Now-playing cue file written by ices0 |
 
 When `STREAM_PLAYLIST_TYPE=builtin`, `entrypoint.sh` auto-scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.flac`, `*.m4a`, `*.aac` and writes `STREAM_PLAYLIST`.
 
