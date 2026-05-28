@@ -36,3 +36,16 @@ libshout) is built from source inside the image using that cross-compiler. Versi
 
 The build image tag is `:build` (rolling) per the dev-images convention. The `BOOTLIN_AARCH64_MUSL_URL`
 arg is the version pin — do not additionally pin the base `alpine:latest` tag.
+
+## Static Python and Perl embedding
+
+The Linux binary statically embeds Python and Perl. Their source tarballs are built inside
+`docker/Dockerfile.build` and version-pinned via build ARGs:
+
+- `PYTHON_VERSION="3.12.10"` — built to `/usr/local/python-static` (amd64) and cross-built to `${ARM64_PREFIX}` (arm64)
+- `PERL_VERSION="5.38.4"` — built to `/usr/local/perl-static` (amd64) and cross-built to `${ARM64_PREFIX}` (arm64)
+
+Update these version pins intentionally; never automatically.
+
+**`libffi-static` does not exist as an Alpine package.** `libffi-dev` already ships `libffi.a`. Do not
+add `libffi-static` to the `apk add` line — it will break the build with "no such package".

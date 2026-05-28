@@ -133,8 +133,8 @@ All optional features are compiled in:
 - ✅ MP4/AAC transcoding (FAAD2)
 - ✅ TLS/SSL support (OpenSSL)
 - ✅ Proper UTF-8 metadata handling (built-in)
-- ✅ Python scripting (`STREAM_PLAYLIST_TYPE=python`) — statically embedded libpython
-- ✅ Perl scripting (`STREAM_PLAYLIST_TYPE=perl`) — statically embedded libperl
+- ✅ Python scripting (`STREAM_PLAYLIST_TYPE=python`) — statically embedded libpython (Python 3.12.10)
+- ✅ Perl scripting (`STREAM_PLAYLIST_TYPE=perl`) — statically embedded libperl (Perl 5.38.4)
 - ✅ Python/Perl scripting on FreeBSD — dynamically linked via `pkg install python3 perl5`
 
 ---

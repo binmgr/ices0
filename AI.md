@@ -69,27 +69,32 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 ## Build environment image (`build-env-image.yml`)
 
 - **Trigger**: push to main/master touching `docker/Dockerfile.build` or the workflow file itself; quarterly schedule (`0 0 1 */3 *`); `workflow_dispatch`
-- **Output**: `ghcr.io/{project_org}/{project_name}:build` (multi-platform, pushed to GHCR)
+- **Output**: `ghcr.io/{project_org}/{project_name}:build` — amd64 only via CI (no `platforms:` arg; runners are always amd64); `make build-env` builds multi-platform locally
 - **Dockerfile**: `docker/Dockerfile.build`
-- **Permissions**: `packages: write` on the build job; `contents: read` at workflow level
+- **Permissions (GitHub)**: `packages: write` on the build job; `contents: read` at workflow level. Forgejo/Gitea use `FORGEJO_TOKEN`/`GITEA_TOKEN` secrets with manual `docker login` instead.
 - **Concurrency**: `group: ${{ github.workflow }}-${{ github.ref }}`, `cancel-in-progress: true`
 
 ### `docker/Dockerfile.build` structure
 
+Build ARGs: `BOOTLIN_AARCH64_MUSL_URL`, `GLIBC_APK_VERSION="2.35-r1"`, `PYTHON_VERSION="3.12.10"`, `PYTHON_MINOR="3.12"`, `PERL_VERSION="5.38.4"`.
+
 1. `FROM alpine:latest` — rolling tag intentional (build env, not production)
-2. Install Alpine build tools + static library packages (libogg, libvorbis, libxml2, faad2, flac, openssl, etc.)
-3. Install glibc compat APK (for the Bootlin toolchain loader)
-4. Download and install Bootlin `aarch64--musl--stable-{date}` cross-toolchain to `/opt/toolchains/aarch64-musl`
-5. Source-build LAME, mp4v2, libshout for the amd64 host target (static only)
-6. Embed `build-ices0` script via `COPY <<'EOF'`
+2. Install Alpine build tools + static library packages (libogg, libvorbis, libxml2, faad2, flac, openssl, `libffi-dev`, etc.). Note: `libffi-static` does not exist as an Alpine package — `libffi-dev` includes the static archive; do not add `libffi-static`.
+3. Install glibc compat APK (`GLIBC_APK_VERSION="2.35-r1"`) — required for the Bootlin toolchain ELF loader
+4. Download and install Bootlin `aarch64--musl--stable-2025.08-1` cross-toolchain to `/opt/toolchains/aarch64-musl`
+5. Source-build LAME 3.100, mp4v2, libshout for the amd64 host target (static only, installed to `/usr`)
+6. Source-build Python `PYTHON_VERSION` statically to `/usr/local/python-static` (`--disable-shared --without-ensurepip --disable-test-modules`)
+7. Source-build Perl `PERL_VERSION` statically to `/usr/local/perl-static` (`-Duseshrplib=false -Dusedl=false -Dstatic_ext='none'`)
+8. Embed `build-ices0` script via `COPY <<'EOF'`
 
 ### `build-ices0` script (embedded in Dockerfile.build)
 
 - Called as `build-ices0 amd64` or `build-ices0 arm64`
-- For **amd64**: uses Alpine's own gcc + pre-built static deps in `/usr`
-- For **arm64**: calls `build_arm64_deps()` which cross-builds all deps from source into `/opt/ices0-static/arm64` using the Bootlin toolchain
-- Clones upstream ices0 from `https://github.com/Moonbase59/ices0.git`
-- Runs `autoreconf -fi && ./configure && make`; falls back to manual link if libtool reorders C++ runtime
+- For **amd64**: uses Alpine's gcc + pre-built static deps in `/usr`; prepends `/usr/local/python-static/bin` and `/usr/local/perl-static/bin` to `PATH` so `./configure` auto-detects Python and Perl
+- For **arm64**: calls `build_arm64_deps()` which cross-builds the full dep stack (zlib, xz, openssl, libxml2, libogg, libvorbis, faad2, flac, lame, mp4v2, libshout, **Python 3.12.10**, **Perl 5.38.4**) from source into `/opt/ices0-static/arm64` using the Bootlin toolchain. Python is cross-compiled with `--with-build-python=/usr/local/python-static/bin/python3`; a host-runnable `python3-config` wrapper is installed to `${ARM64_PREFIX}/bin`. Perl is cross-compiled with `-Dhostperl=/usr/local/perl-static/bin/perl`; a `perl-embed-wrap` wrapper (returning arm64 embed flags without executing the arm64 binary) is symlinked as `perl`.
+- Clones upstream ices0 from `https://github.com/Moonbase59/ices0.git` (no `--depth 1`; full clone for version extraction)
+- `./configure` has no `--without-python` or `--without-perl` flags — both are detected automatically via the wrappers/PATH
+- Falls back to manual link if libtool reorders C++ runtime; the fallback detects and includes `libpython3.12.a` (`_PYLIB`) and `libperl.a` (`_PERLLIB`) when present
 - Strips the binary; outputs to `/output/ices0-linux-{ARCH}` and `/output/VERSION`
 
 ---
@@ -102,35 +107,44 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 
 ### `build-linux` job
 
+**GitHub** (`container:` approach — no checkout needed; build-ices0 clones ices0 itself):
 - `runs-on: ubuntu-latest`
-- `container: image: ghcr.io/{project_org}/{project_name}:build`
+- `container: image: ghcr.io/{project_org}/{project_name}:build` with GHCR credentials (`github.actor` / `GITHUB_TOKEN`)
 - Matrix: `arch: [amd64, arm64]`
 - Steps:
-  1. `build-ices0 ${{ matrix.arch }}` (script is in the container image)
-  2. Upload artifact `ices0-linux-{arch}` from `/output/`, `retention-days: 7`
+  1. `build-ices0 ${{ matrix.arch }}` (runs inside the container; writes to `/output/`)
+  2. Upload artifact `ices0-linux-{arch}` from `/output/` (absolute container path), `retention-days: 7`
+
+**Gitea / Forgejo** (`docker run` approach — explicit checkout required):
+- `runs-on: ubuntu-latest` (no `container:`)
+- Steps:
+  1. `actions/checkout`
+  2. Compute registry host from `forgejo.server_url`/`gitea.server_url`; docker pull build image (fall back to local build)
+  3. `docker run --rm -v "$GITHUB_WORKSPACE/output:/output" $BUILD_IMAGE build-ices0 ${{ matrix.arch }}`
+  4. Upload artifact `ices0-linux-{arch}` from `output/` (relative workspace path), `retention-days: 7`
 
 ### `build-freebsd` job
 
 - `runs-on: ubuntu-latest` (both matrix entries)
 - Matrix: `[{arch: amd64, vm-arch: amd64}, {arch: arm64, vm-arch: arm64}]`
 - Uses `vmactions/freebsd-vm` with `usesh: true`, `arch: ${{ matrix.vm-arch }}`, `disable-cache: true`
-- `prepare`: `pkg install -y git autoconf automake libtool pkgconf gmake libshout libogg libvorbis faad2 flac lame libxml2 openssl mp4v2`
-- `run`: clone ices0, extract version, configure with system libs, `gmake`, strip, copy to `output/ices0-freebsd-{arch}`
-- Upload artifact `ices0-freebsd-{arch}` from `output/`, `retention-days: 7`
+- `prepare`: `pkg install -y git autoconf automake libtool pkgconf gmake libshout libogg libvorbis faad2 flac lame libxml2 openssl mp4v2 python3 perl5`
+- `run`: clone ices0, extract version, set `CFLAGS`/`CPPFLAGS`/`LDFLAGS`, configure with system libs (no `--without-python`/`--without-perl`), `gmake`, strip, copy to `output/ices0-freebsd-{arch}`
+- Upload artifact `ices0-freebsd-{arch}` from `ices0/output/` (subdirectory created by the vm action), `retention-days: 7`
 
 ### `release` job
 
 - `needs: [build-linux, build-freebsd]`
 - `runs-on: ubuntu-latest`
-- `permissions: contents: write, packages: write`
+- `permissions: contents: write, packages: write` (GitHub only; Forgejo/Gitea use `FORGEJO_TOKEN`/`GITEA_TOKEN` via Forgejo/Gitea API)
 - Steps:
   1. `actions/checkout`
   2. `actions/download-artifact` with `merge-multiple: true` into `artifacts/`
   3. Extract version from `artifacts/VERSION`
   4. Compute YYMM tag
-  5. `mkdir release && cp artifacts/ices0-* release/ && chmod +x release/* && sha256sum * > checksums.txt`
-  6. `gh release delete v{version} --yes --cleanup-tag || true`; `gh release create v{version} ...`
-  7. `docker/setup-buildx-action`, `docker/login-action` to GHCR
+  5. `mkdir release && cp artifacts/ices0-* release/ && chmod +x release/* && cd release && sha256sum * > checksums.txt`
+  6. GitHub: `gh release delete v{version} --yes --cleanup-tag || true`; `gh release create v{version} ...`. Forgejo/Gitea: delete existing release+tag via API then POST to create; upload each file via asset API.
+  7. `docker/setup-buildx-action`; login to registry
   8. Copy Linux binaries: `cp release/ices0-linux-* .`
   9. `docker/build-push-action` with `platforms: linux/amd64,linux/arm64`, push tags `latest`, `{version}`, `{yymm}`
 
@@ -200,12 +214,11 @@ Current pinned SHAs:
 
 ## Security workflow (`security.yml`)
 
-- **Trigger**: push to main/master, pull_request, weekly schedule, `workflow_dispatch`
-- Always-required jobs (every run, no conditions):
-  - `secret-scan` — truffleHog (`trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab`, v3.95.3); `fetch-depth: 0`; `--only-verified`
-  - `workflow-policy` — inline shell verifying all `uses:` lines are pinned to 40-char SHAs; blocks `pull_request_target`
-- Conditional jobs:
-  - `image-scan` — Trivy against the published `ghcr.io/{project_org}/{project_name}:latest`; `--ignore-unfixed --severity CRITICAL,HIGH`
+- **Trigger**: push to main/master, pull_request, weekly schedule (`0 6 * * 1` — Monday 6 AM UTC), `workflow_dispatch`
+- All three jobs are unconditional (no `if:` guards):
+  - `secret-scan` — truffleHog (`trufflesecurity/trufflehog@37b77001d0174ebec2fcca2bd83ff83a6d45a3ab`, v3.95.3); `fetch-depth: 0`; `path: .`; `base: default_branch`; `--only-verified`
+  - `workflow-policy` — inline shell verifying all `uses:` lines in `.github/workflows/*.yml`, `.gitea/workflows/*.yml`, and `.forgejo/workflows/*.yml` are pinned to 40-char SHAs; also blocks `pull_request_target`
+  - `image-scan` — Trivy installed via `aquasecurity/trivy` install script (not a pinned action); scans `ghcr.io/{project_org}/{project_name}:latest`; `--ignore-unfixed --severity CRITICAL,HIGH`
 - Critical/high CVEs are hard failures
 
 ---
