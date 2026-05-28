@@ -72,10 +72,11 @@ services:
       STREAM_PLAYLIST_TYPE: builtin
       STREAM_INTERPRETER_MODULE: ices
       STREAM_MEDIA_FOLDER: /media
-      STREAM_CONFIG: /ices/ices.conf
-      STREAM_PLAYLIST: /ices/playlist.txt
+      STREAM_CONFIG: /config/ices0/ices.conf
+      STREAM_PLAYLIST: /data/ices0/playlist.txt
+      STREAM_CUE_FILE: /data/ices0/ices.cue
     volumes:
-      - 'ices-data:/ices'
+      - 'ices-data:/data/ices0'
       - './volumes/data/media/music:/media:ro'
     depends_on:
       server:

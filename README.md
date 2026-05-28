@@ -61,6 +61,7 @@ docker run --rm -it \
   -e STREAM_MOUNTPOINT=/music \
   -e STREAM_NAME="My Music" \
   -v /path/to/music:/media:ro \
+  -v /path/to/data:/data/ices0 \
   ghcr.io/binmgr/ices0:latest
 ```
 
@@ -100,11 +101,12 @@ Configure the container entirely via `STREAM_*` environment variables — no con
 | `STREAM_CROSS_MIX` | `0` | `1` = crossfade at 100% volume |
 | `STREAM_VERBOSE` | `0` | `1` = verbose logging |
 | `STREAM_BACKGROUND` | `0` | `1` = daemon mode (avoid in containers) |
-| `STREAM_PLAYLIST_TYPE` | `builtin` | Playlist module |
-| `STREAM_INTERPRETER_MODULE` | `ices` | Interpreter module name |
+| `STREAM_PLAYLIST_TYPE` | `builtin` | `builtin`, `python`, `perl`, or `script` |
+| `STREAM_INTERPRETER_MODULE` | `ices` | Interpreter module name (python/perl/script types) |
 | `STREAM_MEDIA_FOLDER` | `/media` | Mount your audio files here |
-| `STREAM_CONFIG` | `/ices/ices.conf` | Generated config path |
-| `STREAM_PLAYLIST` | `/ices/playlist.txt` | Generated playlist path |
+| `STREAM_CONFIG` | `/config/ices0/ices.conf` | Generated config path |
+| `STREAM_PLAYLIST` | `/data/ices0/playlist.txt` | Generated playlist path |
+| `STREAM_CUE_FILE` | `/data/ices0/ices.cue` | Now-playing cue file (written by ices0) |
 
 When `STREAM_PLAYLIST_TYPE=builtin`, the entrypoint automatically scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.flac`, `*.m4a`, `*.aac` files and generates the playlist.
 
@@ -144,10 +146,11 @@ For the bare binary, create an XML config file manually:
     <MinCrossfade>0</MinCrossfade>
     <CrossMix>0</CrossMix>
     <Module>ices</Module>
+    <CueFile>/data/ices0/ices.cue</CueFile>
   </Playlist>
   <Execution>
     <Background>0</Background>
-    <Verbose>1</Verbose>
+    <Verbose>0</Verbose>
     <Timestamp>0</Timestamp>
     <BaseDirectory>/tmp</BaseDirectory>
   </Execution>

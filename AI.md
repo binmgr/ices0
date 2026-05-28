@@ -153,14 +153,25 @@ The entrypoint generates `/ices/ices.conf` from `STREAM_*` env vars, optionally 
 
 - `STREAM_PRIVATE` is inverted to `<Public>`: `STREAM_PRIVATE=0` → `<Public>1</Public>`
 - When `STREAM_PLAYLIST_TYPE=builtin`: `find $STREAM_MEDIA_FOLDER -name '*.mp3' -o -name '*.ogg' ...` sorted into `STREAM_PLAYLIST`
-- Config written to `STREAM_CONFIG` (default `/ices/ices.conf`)
+- Config written to `STREAM_CONFIG` (default `/config/ices0/ices.conf`) — ephemeral; mount `/config/ices0` as a volume only if you want to inspect it
 - Exec: `exec /usr/local/bin/ices0 -c "${STREAM_CONFIG}"` — ices0 exits when playlist is exhausted; `restart: always` in Compose causes the container to restart, regenerating the same sorted playlist and looping indefinitely
-- `/ices` is a named Docker volume — `playlist.txt` and `ices.conf` persist across restarts and are inspectable
+- `/data/ices0` is a named Docker volume — `playlist.txt` and `ices.cue` persist across restarts and are inspectable
+
+### Path layout
+
+| Path | Purpose | Persist |
+|---|---|---|
+| `/config/ices0/ices.conf` | Generated XML config | Optional |
+| `/data/ices0/playlist.txt` | Generated playlist | Yes (named volume) |
+| `/data/ices0/ices.cue` | Now-playing cue file (written by ices0) | Yes (named volume) |
 
 ### Env vars
 
 | Variable | Default | XML element | Notes |
 |---|---|---|---|
+| `STREAM_CONFIG` | `/config/ices0/ices.conf` | — | Generated config path |
+| `STREAM_PLAYLIST` | `/data/ices0/playlist.txt` | `<File>` | |
+| `STREAM_CUE_FILE` | `/data/ices0/ices.cue` | `<CueFile>` | Written by ices0; records now-playing info |
 | `STREAM_RANDOMIZE` | `0` | `<Randomize>` | |
 | `STREAM_CROSSFADE` | `2` | `<Crossfade>` | seconds |
 | `STREAM_MIN_CROSSFADE` | `0` | `<MinCrossfade>` | min track length before crossfade kicks in |

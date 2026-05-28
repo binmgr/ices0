@@ -5,8 +5,9 @@ set -eu
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
-STREAM_CONFIG="${STREAM_CONFIG:-/ices/ices.conf}"
-STREAM_PLAYLIST="${STREAM_PLAYLIST:-/ices/playlist.txt}"
+STREAM_CONFIG="${STREAM_CONFIG:-/config/ices0/ices.conf}"
+STREAM_PLAYLIST="${STREAM_PLAYLIST:-/data/ices0/playlist.txt}"
+STREAM_CUE_FILE="${STREAM_CUE_FILE:-/data/ices0/ices.cue}"
 STREAM_MEDIA_FOLDER="${STREAM_MEDIA_FOLDER:-/media}"
 STREAM_HOST="${STREAM_HOST:-localhost}"
 STREAM_PORT="${STREAM_PORT:-8000}"
@@ -44,7 +45,7 @@ fi
 # ---------------------------------------------------------------------------
 # Playlist
 # ---------------------------------------------------------------------------
-mkdir -p "$(dirname "${STREAM_CONFIG}")" "$(dirname "${STREAM_PLAYLIST}")"
+mkdir -p "$(dirname "${STREAM_CONFIG}")" "$(dirname "${STREAM_PLAYLIST}")" "$(dirname "${STREAM_CUE_FILE}")"
 
 if [ "${STREAM_PLAYLIST_TYPE}" = "builtin" ] && [ -d "${STREAM_MEDIA_FOLDER}" ]; then
     find "${STREAM_MEDIA_FOLDER}" \( \
@@ -72,6 +73,7 @@ cat > "${STREAM_CONFIG}" <<EOF
     <MinCrossfade>${STREAM_MIN_CROSSFADE}</MinCrossfade>
     <CrossMix>${STREAM_CROSS_MIX}</CrossMix>
     <Module>${STREAM_INTERPRETER_MODULE}</Module>
+    <CueFile>${STREAM_CUE_FILE}</CueFile>
   </Playlist>
   <Execution>
     <Background>${STREAM_BACKGROUND}</Background>
