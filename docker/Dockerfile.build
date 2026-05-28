@@ -5,6 +5,9 @@ FROM alpine:latest
 
 ARG BOOTLIN_AARCH64_MUSL_URL="https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/aarch64--musl--stable-2025.08-1.tar.xz"
 ARG GLIBC_APK_VERSION="2.35-r1"
+ARG PYTHON_VERSION="3.12.10"
+ARG PYTHON_MINOR="3.12"
+ARG PERL_VERSION="5.38.4"
 
 # Install build tools and the static-friendly Alpine packages we can reuse.
 RUN apk add --no-cache \
@@ -13,7 +16,8 @@ RUN apk add --no-cache \
     libvorbis-static libxml2-dev libxml2-static linux-headers nasm openssl-dev \
     openssl-libs-static patch pkgconf python3 qemu-aarch64 readline-dev \
     samurai sqlite-dev tar wget xz xz-dev xz-static zlib-dev zlib-static \
-    faad2-dev faad2-static flac-dev flac-static flex perl perl-dev
+    faad2-dev faad2-static flac-dev flac-static flex libffi-dev libffi-static \
+    perl perl-dev
 
 RUN mkdir -p /build && \
     wget -q -O /etc/apk/keys/sgerrand.rsa.pub https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
@@ -49,6 +53,41 @@ RUN git clone --depth 1 --recursive https://github.com/xiph/Icecast-libshout.git
       --disable-examples --disable-tools --disable-theora --disable-speex && \
     make -j$(nproc) && make install && \
     rm -rf /build/libshout
+
+# Static Python for embedding in ices0 (amd64 host build; arm64 is cross-compiled at runtime)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    wget -q "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
+        -O /tmp/python.tar.xz && \
+    tar -xJf /tmp/python.tar.xz -C /tmp && \
+    cd /tmp/Python-${PYTHON_VERSION} && \
+    ./configure \
+        --prefix=/usr/local/python-static \
+        --disable-shared \
+        --without-ensurepip \
+        --disable-test-modules \
+        ac_cv_file__dev_ptmx=no \
+        ac_cv_file__dev_ptc=no && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/Python-${PYTHON_VERSION} /tmp/python.tar.xz
+
+# Static Perl for embedding in ices0 (amd64 host build; arm64 is cross-compiled at runtime)
+RUN wget -q "https://www.cpan.org/src/5.0/perl-${PERL_VERSION}.tar.gz" \
+        -O /tmp/perl.tar.gz && \
+    tar -xzf /tmp/perl.tar.gz -C /tmp && \
+    cd /tmp/perl-${PERL_VERSION} && \
+    sh Configure -des \
+        -Dprefix=/usr/local/perl-static \
+        -Dcc=gcc \
+        -Duseshrplib=false \
+        -Dusedl=false \
+        -Dstatic_ext='none' \
+        -Dman1dir=none \
+        -Dman3dir=none \
+        -Doptimize='-Os' && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/perl-${PERL_VERSION} /tmp/perl.tar.gz
 
 WORKDIR /build
 
@@ -236,6 +275,78 @@ build_arm64_deps() {
         make install
     )
 
+    fetch_archive "https://www.python.org/ftp/python/3.12.10/Python-3.12.10.tar.xz" "Python-3.12.10.tar.xz" "${SOURCE_ROOT}/python"
+    (
+        cd "${SOURCE_ROOT}/python"
+        cat > config.cache <<CACHE
+ac_cv_file__dev_ptmx=no
+ac_cv_file__dev_ptc=no
+ac_cv_buggy_getaddrinfo=no
+ac_cv_have_long_long_format=yes
+ac_cv_pthread_is_default=yes
+ac_cv_working_tzset=yes
+CACHE
+        ./configure \
+            --host="${ARM64_TRIPLE}" \
+            --build="$(gcc -dumpmachine)" \
+            --prefix="${ARM64_PREFIX}" \
+            --disable-shared \
+            --without-ensurepip \
+            --disable-test-modules \
+            --with-build-python=/usr/local/python-static/bin/python3 \
+            --cache-file=config.cache
+        make -j$(nproc) libpython3.12.a
+        make install
+    )
+    # python3-config from cross-built Python is an arm64 binary; replace with a
+    # host-runnable wrapper that returns the correct arm64 compile/link flags.
+    cat > "${ARM64_PREFIX}/bin/python3-config" <<PYCONF
+#!/bin/sh
+PREFIX="${ARM64_PREFIX}"
+PYVER=3.12
+case "\$1" in
+    --includes|--cflags) printf '%s\n' "-I\${PREFIX}/include/python\${PYVER}" ;;
+    --ldflags|--embed) printf '%s\n' "-L\${PREFIX}/lib -lpython\${PYVER}" ;;
+    --prefix|--exec-prefix) printf '%s\n' "\${PREFIX}" ;;
+    --extension-suffix) printf '%s\n' ".cpython-312-aarch64-linux-musl.so" ;;
+esac
+PYCONF
+    chmod +x "${ARM64_PREFIX}/bin/python3-config"
+    ln -sf python3-config "${ARM64_PREFIX}/bin/python3.12-config"
+
+    fetch_archive "https://www.cpan.org/src/5.0/perl-5.38.4.tar.gz" "perl-5.38.4.tar.gz" "${SOURCE_ROOT}/perl"
+    (
+        cd "${SOURCE_ROOT}/perl"
+        sh Configure -des \
+            -Dprefix="${ARM64_PREFIX}" \
+            -Dcc="${CC}" \
+            -Dar="${AR}" \
+            -Dranlib="${RANLIB}" \
+            -Duseshrplib=false \
+            -Dusedl=false \
+            -Dstatic_ext='none' \
+            -Dman1dir=none \
+            -Dman3dir=none \
+            -Doptimize='-Os' \
+            -Dhostperl=/usr/local/perl-static/bin/perl
+        make -j$(nproc)
+        make install
+    )
+    # Create a perl wrapper that returns arm64 embed flags without executing the
+    # arm64 perl binary on the host.
+    _PERL_ARCH=$(ls "${ARM64_PREFIX}/lib/perl5/" | grep '^5\.' | head -1)
+    _PERL_CORE="${ARM64_PREFIX}/lib/perl5/${_PERL_ARCH}/aarch64-linux/CORE"
+    cat > "${ARM64_PREFIX}/bin/perl-embed-wrap" <<PERLCONF
+#!/bin/sh
+case "\$*" in
+    *ccopts*) printf '%s\n' "-I${_PERL_CORE}" ;;
+    *ldopts*) printf '%s\n' "-L${_PERL_CORE} -lperl -lm -ldl -pthread" ;;
+    *)        exec /usr/local/perl-static/bin/perl "\$@" ;;
+esac
+PERLCONF
+    chmod +x "${ARM64_PREFIX}/bin/perl-embed-wrap"
+    ln -sf perl-embed-wrap "${ARM64_PREFIX}/bin/perl"
+
     touch "${ARM64_PREFIX}/.complete"
 }
 
@@ -243,6 +354,7 @@ case "$ARCH" in
     amd64)
         PREFIX=/usr
         CC=gcc; CXX=g++; STRIP=strip; HOST=""
+        export PATH="/usr/local/python-static/bin:/usr/local/perl-static/bin:${PATH}"
         CFLAGS="-std=gnu17 -Os -I${PREFIX}/include"
         CPPFLAGS="-I${PREFIX}/include -DWAIT_ANY=-1 -Wno-error=implicit-function-declaration -Wno-error=incompatible-pointer-types"
         LDFLAGS="-static -L${PREFIX}/lib"
@@ -254,6 +366,7 @@ case "$ARCH" in
         PREFIX="${ARM64_PREFIX}"
         build_arm64_deps
         export PATH="${PREFIX}/bin:${ARM64_TOOLCHAIN_ROOT}/bin:${PATH}"
+        # python3-config and perl wrappers installed by build_arm64_deps are in PREFIX/bin
         CC="${ARM64_TRIPLE}-gcc"
         CXX="${ARM64_TRIPLE}-g++"
         STRIP="${ARM64_TRIPLE}-strip"
@@ -282,13 +395,18 @@ LIBGCC=$(${CC} -print-libgcc-file-name)
 export LIBS="-lshout ${PREFIX}/lib/libmp4v2.a ${LIBSTDCPP} ${LIBSUPCPP} ${LIBGCC} -lfaad -lvorbisfile -lvorbis -logg -lFLAC -lmp3lame -lxml2 -llzma -lssl -lcrypto -lz -lm -ldl -pthread"
 
 autoreconf -fi
-./configure ${HOST} --prefix=/usr --without-python --without-perl \
+./configure ${HOST} --prefix=/usr \
   --with-lame="${PREFIX}" --with-vorbis="${PREFIX}" --with-faad="${PREFIX}" --with-flac="${PREFIX}" \
   --with-xml-config="${XML2_CONFIG}"
 
 if ! make -j$(nproc); then
   # libtool reorders the static C++ runtime ahead of libmp4v2.a, so do the
   # final link manually after the objects have been built.
+  _PYVER=3.12
+  _PYLIB=$(ls "${PREFIX}/lib/libpython${_PYVER}.a" 2>/dev/null || true)
+  _PERL_ARCH=$(ls "${PREFIX}/lib/perl5/" 2>/dev/null | grep '^5\.' | head -1)
+  _PERL_TRIPLE=$(ls "${PREFIX}/lib/perl5/${_PERL_ARCH}/" 2>/dev/null | grep -v '^[A-Z]' | head -1)
+  _PERLLIB="${PREFIX}/lib/perl5/${_PERL_ARCH}/${_PERL_TRIPLE}/CORE/libperl.a"
   cd src
   ${CC} -std=gnu17 -Os -Wall -I"${PREFIX}/include" \
     -static -L"${PREFIX}/lib" \
@@ -299,6 +417,7 @@ if ! make -j$(nproc); then
     "${PREFIX}/lib/libshout.a" -lssl -lcrypto -lxml2 -lz -llzma \
     "${PREFIX}/lib/libmp3lame.a" -lvorbisfile -lvorbis -logg \
     "${PREFIX}/lib/libmp4v2.a" "${LIBSTDCPP}" "${LIBSUPCPP}" "${LIBGCC}" \
+    ${_PYLIB:+"${_PYLIB}"} ${_PERLLIB:+"${_PERLLIB}"} \
     -lfaad -lFLAC -lm -ldl -pthread
   cd ..
 fi

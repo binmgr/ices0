@@ -39,7 +39,7 @@ fetch -o /usr/local/bin/ices0 \
 chmod +x /usr/local/bin/ices0
 ```
 
-Dynamically linked against FreeBSD system libraries. Python/Perl scripting requires `pkg install python3 perl5`.
+Dynamically linked against FreeBSD system libraries. Python and Perl scripting are enabled; `python3` and `perl5` are installed automatically during the build.
 
 ### Verify Integrity (Optional)
 
@@ -133,9 +133,9 @@ All optional features are compiled in:
 - ✅ MP4/AAC transcoding (FAAD2)
 - ✅ TLS/SSL support (OpenSSL)
 - ✅ Proper UTF-8 metadata handling (built-in)
-- ✅ Python scripting (Docker image — `python3` included; set `STREAM_PLAYLIST_TYPE=python`)
-- ✅ Perl scripting (Docker image — `perl` included; set `STREAM_PLAYLIST_TYPE=perl`)
-- ❌ Python/Perl scripting (static Linux binary — disabled to keep the binary self-contained)
+- ✅ Python scripting (`STREAM_PLAYLIST_TYPE=python`) — statically embedded libpython
+- ✅ Perl scripting (`STREAM_PLAYLIST_TYPE=perl`) — statically embedded libperl
+- ✅ Python/Perl scripting on FreeBSD — dynamically linked via `pkg install python3 perl5`
 
 ---
 

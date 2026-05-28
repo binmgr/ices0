@@ -86,7 +86,7 @@ jobs:
           prepare: |
             pkg install -y git autoconf automake libtool pkgconf gmake \
               libshout libogg libvorbis faad2 flac lame libxml2 \
-              openssl mp4v2
+              openssl mp4v2 python3 perl5
           run: |
             git clone --depth 1 https://github.com/Moonbase59/ices0.git
             cd ices0
@@ -104,7 +104,6 @@ jobs:
 
             autoreconf -fi
             ./configure --prefix=/usr/local \
-              --without-python --without-perl \
               --with-lame="${PREFIX}" \
               --with-vorbis="${PREFIX}" \
               --with-faad="${PREFIX}" \

@@ -139,7 +139,7 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 ## Runtime Dockerfile
 
 - **Base**: `FROM alpine:latest` (not scratch — entrypoint.sh requires a shell)
-- **Init**: `tini` installed via `apk add --no-cache tini python3 perl` — python3 and perl are included so `STREAM_PLAYLIST_TYPE=python` and `STREAM_PLAYLIST_TYPE=perl` work out of the box
+- **Init**: `tini` installed via `apk add --no-cache tini python3 perl` — python3 and perl are present for `STREAM_PLAYLIST_TYPE=script` playlists; the ices0 binary itself has Python and Perl statically embedded (built with `--with-python --with-perl`)
 - **Binary**: `COPY ices0-linux-${TARGETARCH} /usr/local/bin/ices0`
 - **Rootfs**: `COPY docker/rootfs/ /` — copies `entrypoint.sh` to `/usr/local/bin/entrypoint.sh`
 - **Startup chain**: `ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/entrypoint.sh"]`
