@@ -24,7 +24,7 @@ test: build ## Alias for build
 build: ## Build the build environment image then compile ices0 for the host architecture (output: binaries/)
 	docker build -f docker/Dockerfile.build -t $(BUILD_IMAGE) .
 	@mkdir -p binaries
-	docker run --rm -it \
+	docker run --rm \
 		--name $(PROJECTNAME)-$$(tr -dc 'a-z0-9' </dev/urandom | head -c8) \
 		-v "$(PWD)/binaries:/output" \
 		$(BUILD_IMAGE) \

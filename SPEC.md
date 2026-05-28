@@ -49,5 +49,9 @@ Update these version pins intentionally; never automatically.
 
 **Do not add `-Dstatic_ext='none'` to the Perl Configure invocation.** That flag prevents the `PathTools/Cwd` extension from being built, which causes the utils phase (`cpan`, `corelist`) to fail with "Can't locate Cwd.pm in @INC". The amd64 host build uses the default extension set; the arm64 cross-build avoids the issue entirely by only building `libperl.a`.
 
+**Do not use `make && make install` for the host Perl build.** On Alpine with GCC 15+, the `re` XS extension is compiled into `lib/auto/re/re.a` which duplicates regex symbols already in `libperl.a`. The final `perl` binary link fails with multiple-definition errors. Use `make libperl.a` only, then manually install `libperl.a` and headers to the CORE path, and create a wrapper `bin/perl` script that returns embed flags without needing a real perl binary.
+
+**`PERL_STATIC_PREFIX` in `build-ices0`**: amd64 uses `/usr/local/perl-static`; arm64 uses `${ARM64_PREFIX}`. The `_PERLLIB` fallback link resolves the static library from `PERL_STATIC_PREFIX`, not from `PREFIX` (`/usr`), because amd64's system prefix does not contain a static `libperl.a`.
+
 **`libffi-static` does not exist as an Alpine package.** `libffi-dev` already ships `libffi.a`. Do not
 add `libffi-static` to the `apk add` line — it will break the build with "no such package".

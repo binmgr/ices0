@@ -72,6 +72,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     rm -rf /tmp/Python-${PYTHON_VERSION} /tmp/python.tar.xz
 
 # Static Perl for embedding in ices0 (amd64 host build; arm64 is cross-compiled at runtime)
+# Build only libperl.a — on Alpine with GCC 15+, the re extension is compiled into a
+# static archive that duplicates symbols in libperl.a, causing the final perl binary
+# link to fail. We only need the static library and headers for embedding in ices0.
 RUN wget -q "https://www.cpan.org/src/5.0/perl-${PERL_VERSION}.tar.gz" \
         -O /tmp/perl.tar.gz && \
     tar -xzf /tmp/perl.tar.gz -C /tmp && \
@@ -84,8 +87,16 @@ RUN wget -q "https://www.cpan.org/src/5.0/perl-${PERL_VERSION}.tar.gz" \
         -Dman1dir=none \
         -Dman3dir=none \
         -Doptimize='-Os' && \
-    make -j$(nproc) && \
-    make install && \
+    make -j$(nproc) libperl.a && \
+    _ARCH=$(./miniperl -Ilib -e 'use Config; print $Config{archname}') && \
+    _COREDIR="/usr/local/perl-static/lib/perl5/${PERL_VERSION}/${_ARCH}/CORE" && \
+    mkdir -p "${_COREDIR}" && \
+    cp libperl.a "${_COREDIR}/" && \
+    find . -maxdepth 1 -name '*.h' -exec cp {} "${_COREDIR}/" \; && \
+    mkdir -p /usr/local/perl-static/bin && \
+    printf '#!/bin/sh\ncase "$*" in\n  *ccopts*) printf "%%s\\n" "-I%s" ;;\n  *ldopts*) printf "%%s\\n" "-L%s -lperl -lm -ldl -lpthread -lcrypt" ;;\n  *) exec /usr/bin/perl "$@" ;;\nesac\n' \
+        "${_COREDIR}" "${_COREDIR}" > /usr/local/perl-static/bin/perl && \
+    chmod +x /usr/local/perl-static/bin/perl && \
     rm -rf /tmp/perl-${PERL_VERSION} /tmp/perl.tar.gz
 
 WORKDIR /build
@@ -358,6 +369,7 @@ PERLCONF
 case "$ARCH" in
     amd64)
         PREFIX=/usr
+        PERL_STATIC_PREFIX=/usr/local/perl-static
         CC=gcc; CXX=g++; STRIP=strip; HOST=""
         export PATH="/usr/local/python-static/bin:/usr/local/perl-static/bin:${PATH}"
         CFLAGS="-std=gnu17 -Os -I${PREFIX}/include"
@@ -369,6 +381,7 @@ case "$ARCH" in
         ;;
     arm64)
         PREFIX="${ARM64_PREFIX}"
+        PERL_STATIC_PREFIX="${ARM64_PREFIX}"
         build_arm64_deps
         export PATH="${PREFIX}/bin:${ARM64_TOOLCHAIN_ROOT}/bin:${PATH}"
         # python3-config and perl wrappers installed by build_arm64_deps are in PREFIX/bin
@@ -409,9 +422,9 @@ if ! make -j$(nproc); then
   # final link manually after the objects have been built.
   _PYVER=3.12
   _PYLIB=$(ls "${PREFIX}/lib/libpython${_PYVER}.a" 2>/dev/null || true)
-  _PERL_ARCH=$(ls "${PREFIX}/lib/perl5/" 2>/dev/null | grep '^5\.' | head -1)
-  _PERL_TRIPLE=$(ls "${PREFIX}/lib/perl5/${_PERL_ARCH}/" 2>/dev/null | grep -v '^[A-Z]' | head -1)
-  _PERLLIB="${PREFIX}/lib/perl5/${_PERL_ARCH}/${_PERL_TRIPLE}/CORE/libperl.a"
+  _PERL_ARCH=$(ls "${PERL_STATIC_PREFIX}/lib/perl5/" 2>/dev/null | grep '^5\.' | head -1)
+  _PERL_TRIPLE=$(ls "${PERL_STATIC_PREFIX}/lib/perl5/${_PERL_ARCH}/" 2>/dev/null | grep -v '^[A-Z]' | head -1)
+  _PERLLIB="${PERL_STATIC_PREFIX}/lib/perl5/${_PERL_ARCH}/${_PERL_TRIPLE}/CORE/libperl.a"
   cd src
   ${CC} -std=gnu17 -Os -Wall -I"${PREFIX}/include" \
     -static -L"${PREFIX}/lib" \
