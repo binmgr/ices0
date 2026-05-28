@@ -96,6 +96,8 @@ Configure the container entirely via `STREAM_*` environment variables — no con
 | `STREAM_REENCODED_SAMPLERATE` | `44100` | Output sample rate (Hz) |
 | `STREAM_RANDOMIZE` | `0` | `1` = shuffle playlist |
 | `STREAM_CROSSFADE` | `2` | Crossfade seconds (`0` = off) |
+| `STREAM_MIN_CROSSFADE` | `0` | Minimum track length (s) before crossfade activates |
+| `STREAM_CROSS_MIX` | `0` | `1` = crossfade at 100% volume |
 | `STREAM_VERBOSE` | `0` | `1` = verbose logging |
 | `STREAM_BACKGROUND` | `0` | `1` = daemon mode (avoid in containers) |
 | `STREAM_PLAYLIST_TYPE` | `builtin` | Playlist module |
@@ -119,10 +121,9 @@ All optional features are compiled in:
 - ✅ MP4/AAC transcoding (FAAD2)
 - ✅ TLS/SSL support (OpenSSL)
 - ✅ Proper UTF-8 metadata handling (built-in)
-- ❌ Python scripting (disabled in the fully static Linux build)
-- ❌ Perl scripting (disabled in the fully static Linux build)
-
-Python and Perl playlist scripting are disabled in the fully static Linux build to keep the binary self-contained with no dynamic library dependencies. Shell script playlists and the built-in playlist module work in all builds.
+- ✅ Python scripting (Docker image — `python3` included; set `STREAM_PLAYLIST_TYPE=python`)
+- ✅ Perl scripting (Docker image — `perl` included; set `STREAM_PLAYLIST_TYPE=perl`)
+- ❌ Python/Perl scripting (static Linux binary — disabled to keep the binary self-contained)
 
 ---
 
@@ -140,6 +141,8 @@ For the bare binary, create an XML config file manually:
     <Type>builtin</Type>
     <File>/ices/playlist.txt</File>
     <Crossfade>2</Crossfade>
+    <MinCrossfade>0</MinCrossfade>
+    <CrossMix>0</CrossMix>
     <Module>ices</Module>
   </Playlist>
   <Execution>
