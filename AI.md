@@ -15,7 +15,8 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 │   ├── docker-compose.yml    # Reference Compose stack (icecast server + ices0 source)
 │   └── rootfs/               # Files copied into runtime image (mirrors Linux FHS)
 │       └── usr/local/bin/
-│           └── entrypoint.sh # env var → XML config → exec ices0
+│           ├── entrypoint.sh     # env var → XML config → exec ices0
+│           └── rescan-playlist   # rescan media folder + SIGHUP ices0
 ├── .gitea/
 │   └── workflows/
 │       ├── build-env-image.yml    # Gitea-native mirror of GitHub build-env-image
@@ -152,9 +153,10 @@ The entrypoint generates `/config/ices0/ices.conf` from `STREAM_*` env vars, opt
 ### Config generation
 
 - `STREAM_PRIVATE` is inverted to `<Public>`: `STREAM_PRIVATE=0` → `<Public>1</Public>`
-- When `STREAM_PLAYLIST_TYPE=builtin`: `find $STREAM_MEDIA_FOLDER -name '*.mp3' -o -name '*.ogg' ...` sorted into `STREAM_PLAYLIST`
+- When `STREAM_PLAYLIST_TYPE=builtin`: `find $STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.oga`, `*.flac`, `*.m4a`, `*.aac`, `*.mp4` piped through `sort -u` into `STREAM_PLAYLIST`; ices0 detects format by magic bytes, not extension
 - Config written to `STREAM_CONFIG` (default `/config/ices0/ices.conf`) — ephemeral; mount `/config/ices0` as a volume only if you want to inspect it
-- Exec: `exec /usr/local/bin/ices0 -c "${STREAM_CONFIG}"` — ices0 exits when playlist is exhausted; `restart: always` in Compose causes the container to restart, regenerating the same sorted playlist and looping indefinitely
+- Exec: `exec /usr/local/bin/ices0 -c "${STREAM_CONFIG}"` — ices0 loops the playlist indefinitely (rewinds at EOF); `restart: always` in Compose is for crash recovery only
+- `rescan-playlist` script: reruns the find/sort-u, rewrites `STREAM_PLAYLIST`, sends `SIGHUP` to ices0 to reload the playlist at next track change without restarting the container
 - `/data/ices0` is a named Docker volume — `playlist.txt` and `ices.cue` persist across restarts and are inspectable
 
 ### Path layout

@@ -51,10 +51,12 @@ if [ "${STREAM_PLAYLIST_TYPE}" = "builtin" ] && [ -d "${STREAM_MEDIA_FOLDER}" ];
     find "${STREAM_MEDIA_FOLDER}" \( \
         -name '*.mp3' -o \
         -name '*.ogg' -o \
+        -name '*.oga' -o \
         -name '*.flac' -o \
         -name '*.m4a' -o \
-        -name '*.aac' \
-    \) | sort > "${STREAM_PLAYLIST}"
+        -name '*.aac' -o \
+        -name '*.mp4' \
+    \) | sort -u > "${STREAM_PLAYLIST}"
     _COUNT=$(wc -l < "${STREAM_PLAYLIST}" | tr -d ' ')
     echo "ices0: playlist generated — ${_COUNT} tracks from ${STREAM_MEDIA_FOLDER}"
 fi

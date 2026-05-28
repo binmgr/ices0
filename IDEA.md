@@ -56,7 +56,7 @@ The runtime image is multi-arch (`linux/amd64`, `linux/arm64`). It accepts `STRE
 | `STREAM_PLAYLIST` | `/data/ices0/playlist.txt` | Path for generated playlist |
 | `STREAM_CUE_FILE` | `/data/ices0/ices.cue` | Now-playing cue file written by ices0 |
 
-When `STREAM_PLAYLIST_TYPE=builtin`, `entrypoint.sh` auto-scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.flac`, `*.m4a`, `*.aac` and writes `STREAM_PLAYLIST`.
+When `STREAM_PLAYLIST_TYPE=builtin`, `entrypoint.sh` auto-scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.oga`, `*.flac`, `*.m4a`, `*.aac`, `*.mp4` and writes `STREAM_PLAYLIST` via `sort -u`. ices0 detects format by magic bytes. ices0 loops the playlist indefinitely; `restart: always` is crash recovery only. Run `docker exec <container> rescan-playlist` to pick up new media via SIGHUP without restarting.
 
 ### Release integrity
 

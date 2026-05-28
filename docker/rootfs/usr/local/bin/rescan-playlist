@@ -1,0 +1,26 @@
+#!/bin/sh
+# rescan-playlist — rescan STREAM_MEDIA_FOLDER and reload ices0 playlist via SIGHUP
+set -eu
+
+STREAM_PLAYLIST="${STREAM_PLAYLIST:-/data/ices0/playlist.txt}"
+STREAM_MEDIA_FOLDER="${STREAM_MEDIA_FOLDER:-/media}"
+
+find "${STREAM_MEDIA_FOLDER}" \( \
+    -name '*.mp3' -o \
+    -name '*.ogg' -o \
+    -name '*.oga' -o \
+    -name '*.flac' -o \
+    -name '*.m4a' -o \
+    -name '*.aac' -o \
+    -name '*.mp4' \
+\) | sort -u > "${STREAM_PLAYLIST}"
+
+_COUNT=$(wc -l < "${STREAM_PLAYLIST}" | tr -d ' ')
+echo "rescan-playlist: ${_COUNT} tracks written to ${STREAM_PLAYLIST}"
+
+# Send SIGHUP to ices0 to reload the playlist from disk at next track change
+if killall -HUP ices0 2>/dev/null; then
+    echo "rescan-playlist: sent SIGHUP to ices0 — playlist reloads at next track"
+else
+    echo "rescan-playlist: ices0 not running; playlist updated for next start"
+fi

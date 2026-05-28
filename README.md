@@ -108,7 +108,17 @@ Configure the container entirely via `STREAM_*` environment variables — no con
 | `STREAM_PLAYLIST` | `/data/ices0/playlist.txt` | Generated playlist path |
 | `STREAM_CUE_FILE` | `/data/ices0/ices.cue` | Now-playing cue file (written by ices0) |
 
-When `STREAM_PLAYLIST_TYPE=builtin`, the entrypoint automatically scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.flac`, `*.m4a`, `*.aac` files and generates the playlist.
+When `STREAM_PLAYLIST_TYPE=builtin`, the entrypoint automatically scans `STREAM_MEDIA_FOLDER` for `*.mp3`, `*.ogg`, `*.oga`, `*.flac`, `*.m4a`, `*.aac`, `*.mp4` files and generates the playlist. ices0 detects format by magic bytes, not extension.
+
+ices0 loops the playlist **indefinitely** — it rewinds to the top at end-of-playlist and never exits on its own. `restart: always` in Compose is for crash recovery only.
+
+To pick up newly added media without restarting the container:
+
+```bash
+docker exec icecast-music rescan-playlist
+```
+
+This rescans `STREAM_MEDIA_FOLDER`, rewrites the playlist, and sends `SIGHUP` to ices0 — the updated playlist takes effect at the next track change.
 
 ---
 
