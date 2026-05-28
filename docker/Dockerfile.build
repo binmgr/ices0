@@ -199,7 +199,7 @@ build_arm64_deps() {
     fetch_archive "https://github.com/openssl/openssl/releases/download/openssl-3.5.0/openssl-3.5.0.tar.gz" "openssl-3.5.0.tar.gz" "${SOURCE_ROOT}/openssl"
     (
         cd "${SOURCE_ROOT}/openssl"
-        ./Configure linux-aarch64 no-shared no-tests -static \
+        ./Configure linux-aarch64 threads no-shared no-tests \
             --prefix="${ARM64_PREFIX}" --openssldir="${ARM64_PREFIX}/ssl"
         make -j$(nproc)
         make install_sw
@@ -304,6 +304,7 @@ CACHE
             --without-ensurepip \
             --disable-test-modules \
             --with-build-python=/usr/local/python-static/bin/python3 \
+            --with-openssl="${ARM64_PREFIX}" \
             --cache-file=config.cache
         make -j$(nproc) libpython3.12.a
         make install
