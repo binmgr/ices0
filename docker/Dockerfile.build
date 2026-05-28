@@ -81,7 +81,6 @@ RUN wget -q "https://www.cpan.org/src/5.0/perl-${PERL_VERSION}.tar.gz" \
         -Dcc=gcc \
         -Duseshrplib=false \
         -Dusedl=false \
-        -Dstatic_ext='none' \
         -Dman1dir=none \
         -Dman3dir=none \
         -Doptimize='-Os' && \
@@ -324,13 +323,19 @@ PYCONF
             -Dranlib="${RANLIB}" \
             -Duseshrplib=false \
             -Dusedl=false \
-            -Dstatic_ext='none' \
             -Dman1dir=none \
             -Dman3dir=none \
             -Doptimize='-Os' \
             -Dhostperl=/usr/local/perl-static/bin/perl
-        make -j$(nproc)
-        make install
+        # Build only libperl.a — the arm64 perl binary cannot run on the amd64 host,
+        # so the utils build (cpan, corelist, etc.) would fail. We only need the
+        # static library and headers for embedding in ices0.
+        make -j$(nproc) libperl.a
+        # Install headers and library manually into the standard CORE embed path.
+        _COREDIR="${ARM64_PREFIX}/lib/perl5/${PERL_VERSION}/aarch64-linux/CORE"
+        mkdir -p "${_COREDIR}"
+        cp libperl.a "${_COREDIR}/"
+        find . -maxdepth 1 -name '*.h' -exec cp {} "${_COREDIR}/" \;
     )
     # Create a perl wrapper that returns arm64 embed flags without executing the
     # arm64 perl binary on the host.

@@ -43,9 +43,11 @@ The Linux binary statically embeds Python and Perl. Their source tarballs are bu
 `docker/Dockerfile.build` and version-pinned via build ARGs:
 
 - `PYTHON_VERSION="3.12.10"` — built to `/usr/local/python-static` (amd64) and cross-built to `${ARM64_PREFIX}` (arm64)
-- `PERL_VERSION="5.38.4"` — built to `/usr/local/perl-static` (amd64) and cross-built to `${ARM64_PREFIX}` (arm64)
+- `PERL_VERSION="5.38.4"` — built to `/usr/local/perl-static` (amd64); for arm64 only `make libperl.a` is run (the arm64 perl binary can't execute on the amd64 host; headers + library are manually installed to the CORE path)
 
 Update these version pins intentionally; never automatically.
+
+**Do not add `-Dstatic_ext='none'` to the Perl Configure invocation.** That flag prevents the `PathTools/Cwd` extension from being built, which causes the utils phase (`cpan`, `corelist`) to fail with "Can't locate Cwd.pm in @INC". The amd64 host build uses the default extension set; the arm64 cross-build avoids the issue entirely by only building `libperl.a`.
 
 **`libffi-static` does not exist as an Alpine package.** `libffi-dev` already ships `libffi.a`. Do not
 add `libffi-static` to the `apk add` line — it will break the build with "no such package".
