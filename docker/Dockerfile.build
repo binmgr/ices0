@@ -16,7 +16,7 @@ RUN apk add --no-cache \
     libvorbis-static libxml2-dev libxml2-static linux-headers nasm openssl-dev \
     openssl-libs-static patch pkgconf python3 qemu-aarch64 readline-dev \
     samurai sqlite-dev tar wget xz xz-dev xz-static zlib-dev zlib-static \
-    faad2-dev faad2-static flac-dev flac-static flex libffi-dev libffi-static \
+    faad2-dev faad2-static flac-dev flac-static flex libffi-dev \
     perl perl-dev
 
 RUN mkdir -p /build && \
