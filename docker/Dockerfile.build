@@ -342,6 +342,12 @@ PYCONF
     fetch_archive "https://www.cpan.org/src/5.0/perl-5.38.4.tar.gz" "perl-5.38.4.tar.gz" "${SOURCE_ROOT}/perl"
     (
         cd "${SOURCE_ROOT}/perl"
+        # Pass -static in CFLAGS so Configure's GCC test program is statically linked.
+        # Perl Configure compiles and runs a test binary using the cross-compiler;
+        # a dynamic arm64 musl binary can't execute on the amd64 host even via QEMU
+        # binfmt (it needs /lib/ld-musl-aarch64.so.1 which is not in the container).
+        # A static binary has no dynamic linker dependency and runs cleanly under QEMU.
+        CFLAGS="${CFLAGS} -static" \
         sh Configure -des \
             -Dprefix="${ARM64_PREFIX}" \
             -Dcc="${CC}" \
