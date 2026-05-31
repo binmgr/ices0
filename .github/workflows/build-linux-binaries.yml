@@ -32,25 +32,37 @@ jobs:
         )
       }}
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/binmgr/ices0:build
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
 
     steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+        with:
+          platforms: arm64
+
+      - name: Log in to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build ices0
-        run: build-ices0 ${{ matrix.arch }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/output"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/output:/output" \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build \
+            build-ices0 ${{ matrix.arch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ices0-linux-${{ matrix.arch }}
-          path: /output/
+          path: ${{ github.workspace }}/output/
           retention-days: 7
 
   build-freebsd:
