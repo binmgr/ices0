@@ -94,7 +94,8 @@ RUN wget -q "https://www.cpan.org/src/5.0/perl-${PERL_VERSION}.tar.gz" \
     cp libperl.a "${_COREDIR}/" && \
     find . -maxdepth 1 -name '*.h' -exec cp {} "${_COREDIR}/" \; && \
     mkdir -p /usr/local/perl-static/bin && \
-    printf '#!/bin/sh\ncase "$*" in\n  *ccopts*) printf "%%s\\n" "-I%s" ;;\n  *ldopts*) printf "%%s\\n" "-L%s -lperl -lm -ldl -lpthread -lcrypt" ;;\n  *) exec /usr/bin/perl "$@" ;;\nesac\n' \
+    install -m 755 miniperl /usr/local/perl-static/bin/miniperl && \
+    printf '#!/bin/sh\ncase "$*" in\n  *ccopts*) printf "%%s\\n" "-I%s" ;;\n  *ldopts*) printf "%%s\\n" "-L%s -lperl -lm -ldl -lpthread -lcrypt" ;;\n  *) exec /usr/local/perl-static/bin/miniperl "$@" ;;\nesac\n' \
         "${_COREDIR}" "${_COREDIR}" > /usr/local/perl-static/bin/perl && \
     chmod +x /usr/local/perl-static/bin/perl && \
     rm -rf /tmp/perl-${PERL_VERSION} /tmp/perl.tar.gz
@@ -112,6 +113,7 @@ SOURCE_ROOT="${BUILD_ROOT}/sources"
 ARM64_TOOLCHAIN_ROOT=/opt/toolchains/aarch64-musl
 ARM64_TRIPLE=aarch64-buildroot-linux-musl
 ARM64_PREFIX=/opt/ices0-static/arm64
+PERL_VERSION="5.38.4"
 
 fetch_archive() {
     url="$1"
@@ -342,15 +344,26 @@ PYCONF
     fetch_archive "https://www.cpan.org/src/5.0/perl-5.38.4.tar.gz" "perl-5.38.4.tar.gz" "${SOURCE_ROOT}/perl"
     (
         cd "${SOURCE_ROOT}/perl"
-        # Pass -static in CFLAGS so Configure's GCC test program is statically linked.
-        # Perl Configure compiles and runs a test binary using the cross-compiler;
-        # a dynamic arm64 musl binary can't execute on the amd64 host even via QEMU
-        # binfmt (it needs /lib/ld-musl-aarch64.so.1 which is not in the container).
-        # A static binary has no dynamic linker dependency and runs cleanly under QEMU.
-        CFLAGS="${CFLAGS} -static" \
+        # Perl Configure adds -L/usr/local/lib to ldflags via its loclibpth/libpth defaults
+        # regardless of -Dloclibpth= / -Dlibpth= overrides. The Buildroot cross-compiler
+        # Python wrapper rejects host system -L paths as unsafe in cross-compilation.
+        # Fix: wrap the cross-compiler to silently strip those paths before forwarding to
+        # the real compiler binary. -Dldflags='-static' forces the coherency test binary
+        # to be statically linked so QEMU binfmt can execute it on the amd64 host.
+        _CC_WRAP="${ARM64_PREFIX}/bin/${ARM64_TRIPLE}-gcc-wrap"
+        cat > "${_CC_WRAP}" <<CCWRAP
+#!/bin/sh
+exec ${ARM64_TOOLCHAIN_ROOT}/bin/${ARM64_TRIPLE}-gcc \$(printf '%s\n' "\$@" | grep -vE '^-L(/usr/local|/usr/lib|/lib)(/|\$)')
+CCWRAP
+        chmod +x "${_CC_WRAP}"
+        # The Buildroot GCC 14 cross-compiler cannot run aarch64 probe programs on the
+        # amd64 host (QEMU binfmt works for execution but Configure's output capture fails
+        # for some probes). Explicitly provide the correct aarch64-linux-musl values so
+        # Configure does not need to run-test them.
+        # aarch64 LE: double=IEEE 754 64-bit LE (kind=3), long double=IEEE 754 128-bit LE (kind=5)
         sh Configure -des \
             -Dprefix="${ARM64_PREFIX}" \
-            -Dcc="${CC}" \
+            -Dcc="${_CC_WRAP}" \
             -Dar="${AR}" \
             -Dranlib="${RANLIB}" \
             -Duseshrplib=false \
@@ -358,7 +371,17 @@ PYCONF
             -Dman1dir=none \
             -Dman3dir=none \
             -Doptimize='-Os' \
-            -Dhostperl=/usr/local/perl-static/bin/perl
+            -Dldflags='-static' \
+            -Dd_eaccess=undef \
+            -Dhostperl=/usr/local/perl-static/bin/perl \
+            -Ddoublekind=3 \
+            -Dnvsize=8 \
+            -Dnvtype=double \
+            -Ddoublemantbits=53 \
+            -Dnvmantbits=53 \
+            -Dlongdblsize=16 \
+            -Dlongdblmantbits=113 \
+            -Dlongdblkind=5
         # Build only libperl.a — the arm64 perl binary cannot run on the amd64 host,
         # so the utils build (cpan, corelist, etc.) would fail. We only need the
         # static library and headers for embedding in ices0.
