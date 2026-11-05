@@ -11,7 +11,7 @@ REGISTRY    := ghcr.io/$(PROJECTORG)/$(PROJECTNAME)
 BUILD_IMAGE ?= $(REGISTRY):build
 HOST_ARCH   := $(shell uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 
-.PHONY: help build docker test clean
+.PHONY: help build docker validate test clean
 
 help: ## Show this help message
 	@printf '\n\033[1;37m  %s v%s\033[0m\n\n' "$(PROJECTNAME)" "$(VERSION)"
@@ -41,6 +41,14 @@ docker: ## Build the runtime image locally for testing (single-arch, --load)
 		--load \
 		.
 	@rm -f ices0-linux-$(HOST_ARCH)
+
+validate: ## Validate all workflow files with act --list
+	@for f in .github/workflows/*.yml .gitea/workflows/*.yml .forgejo/workflows/*.yml; do \
+	  [ -f "$$f" ] || continue; \
+	  echo "==> $$f"; \
+	  act --list -W "$$f" || exit 1; \
+	done
+	@echo "All workflows valid."
 
 clean: ## Remove build artifacts (binaries/)
 	@rm -rf binaries/

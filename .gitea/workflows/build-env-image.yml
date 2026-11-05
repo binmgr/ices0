@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ gitea.workflow }}-${{ gitea.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -24,13 +24,13 @@ jobs:
       - name: Compute registry host
         id: reg
         run: |
-          echo "host=$(printf '%s' "${{ gitea.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
+          echo "host=$(printf '%s' "${{ github.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
 
       - name: Login to Gitea registry
         run: |
           echo "${{ secrets.GITEA_TOKEN }}" | \
             docker login "${{ steps.reg.outputs.host }}" \
-              -u "${{ gitea.repository_owner }}" --password-stdin
+              -u "${{ github.repository_owner }}" --password-stdin
 
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
@@ -39,6 +39,6 @@ jobs:
           context: .
           file: docker/Dockerfile.build
           push: true
-          tags: ${{ steps.reg.outputs.host }}/${{ gitea.repository }}:build
-          cache-from: type=registry,ref=${{ steps.reg.outputs.host }}/${{ gitea.repository }}:build-cache
-          cache-to: type=registry,ref=${{ steps.reg.outputs.host }}/${{ gitea.repository }}:build-cache,mode=max
+          tags: ${{ steps.reg.outputs.host }}/${{ github.repository }}:build
+          cache-from: type=registry,ref=${{ steps.reg.outputs.host }}/${{ github.repository }}:build-cache
+          cache-to: type=registry,ref=${{ steps.reg.outputs.host }}/${{ github.repository }}:build-cache,mode=max

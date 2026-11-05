@@ -70,7 +70,7 @@ Container images are published to `ghcr.io/binmgr/ices0`:
 | Tag | Description |
 |-----|-------------|
 | `latest` | Newest released version |
-| `{version}` | Numbered release (e.g. `1.3.2`) |
+| `{version}` | Numbered release (e.g. `0.4.11`) |
 | `{yymm}` | Release month (e.g. `2605`) |
 
 See [docker/docker-compose.yml](docker/docker-compose.yml) for a full Compose stack including an Icecast server.
@@ -241,7 +241,7 @@ uname -m  # Should be x86_64 or aarch64/arm64
 
 ## 🛠️ Development
 
-This repository contains three GitHub Actions workflows: [build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, [build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases binaries, and [security.yml](.github/workflows/security.yml) runs secret scanning, workflow policy checks, and container image scanning.
+The GitHub Actions workflows are mirrored for Gitea (`.gitea/workflows/`), Forgejo (`.forgejo/workflows/`), GitLab CI (`.gitlab-ci.yml`), and Jenkins (`Jenkinsfile`; Linux builds only, no FreeBSD). The three GitHub workflows are: [build-env-image.yml](.github/workflows/build-env-image.yml) maintains the reusable Linux build image, [build-linux-binaries.yml](.github/workflows/build-linux-binaries.yml) builds and releases binaries, and [security.yml](.github/workflows/security.yml) runs secret scanning, workflow policy checks, and container image scanning.
 
 Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced from [docker/Dockerfile.build](docker/Dockerfile.build). FreeBSD builds run in native QEMU VMs via `vmactions/freebsd-vm`.
 
@@ -253,6 +253,7 @@ Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced
 | `make build` | Build the build environment image then compile ices0 for the host architecture into `binaries/` |
 | `make test` | Alias for `make build` |
 | `make docker` | Build the runtime image locally for testing (single-arch, `--load`) |
+| `make validate` | Validate every workflow file with `act --list` |
 | `make clean` | Remove `binaries/` |
 
 ### How It Works
@@ -302,11 +303,7 @@ make build       # produces binaries/ices0-linux-amd64 (or arm64)
 make docker      # builds ghcr.io/binmgr/ices0:dev locally
 ```
 
-To build and push the Docker build environment image:
-
-```bash
-make build-env   # builds + pushes ghcr.io/binmgr/ices0:build (multi-arch)
-```
+`make build` also builds the local `ghcr.io/binmgr/ices0:build` environment image from `docker/Dockerfile.build`; CI publishes it via `build-env-image.yml`.
 
 ---
 

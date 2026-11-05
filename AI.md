@@ -24,9 +24,9 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 │       └── security.yml           # Gitea-native mirror of GitHub security
 ├── .forgejo/
 │   └── workflows/
-│       ├── build-env-image.yml    # Forgejo-native (forgejo.* vars)
-│       ├── build-linux-binaries.yml  # Forgejo-native
-│       └── security.yml           # Forgejo-native
+│       ├── build-env-image.yml    # Forgejo mirror (github.* context aliases)
+│       ├── build-linux-binaries.yml  # Forgejo mirror
+│       └── security.yml           # Forgejo mirror
 ├── .github/
 │   ├── CODEOWNERS
 │   ├── ISSUE_TEMPLATE/
@@ -38,6 +38,7 @@ This file is READ-ONLY. Project-specific values live in `IDEA.md`. Placeholders 
 │       ├── build-env-image.yml    # Builds ghcr.io/{project_org}/{project_name}:build
 │       ├── build-linux-binaries.yml  # Builds binaries + release + runtime image
 │       └── security.yml           # secret-scan + workflow-policy + image-scan
+├── .actrc                    # act config for local workflow validation
 ├── .dockerignore
 ├── Dockerfile                # Runtime image (Alpine + tini + entrypoint.sh + static binary)
 ├── AI.md                     # This file — implementation spec
@@ -119,7 +120,7 @@ Build ARGs: `BOOTLIN_AARCH64_MUSL_URL`, `GLIBC_APK_VERSION="2.35-r1"`, `PYTHON_V
 - `runs-on: ubuntu-latest` (no `container:`)
 - Steps:
   1. `actions/checkout`
-  2. Compute registry host from `forgejo.server_url`/`gitea.server_url`; docker pull build image (fall back to local build)
+  2. Compute registry host from `github.server_url` (aliased by Gitea and Forgejo); docker pull build image (fall back to local build)
   3. `docker run --rm -v "$GITHUB_WORKSPACE/output:/output" $BUILD_IMAGE build-ices0 ${{ matrix.arch }}`
   4. Upload artifact `ices0-linux-{arch}` from `output/` (relative workspace path), `retention-days: 7`
 

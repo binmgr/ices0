@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ forgejo.workflow }}-${{ forgejo.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -18,12 +18,12 @@ jobs:
     name: Linux (${{ matrix.arch }})
     if: >-
       ${{
-        forgejo.event_name != 'workflow_run' ||
+        github.event_name != 'workflow_run' ||
         (
-          forgejo.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.conclusion == 'success' &&
           (
-            forgejo.event.workflow_run.head_branch == 'main' ||
-            forgejo.event.workflow_run.head_branch == 'master'
+            github.event.workflow_run.head_branch == 'main' ||
+            github.event.workflow_run.head_branch == 'master'
           )
         )
       }}
@@ -39,11 +39,11 @@ jobs:
       - name: Compute registry host
         id: reg
         run: |
-          echo "host=$(printf '%s' "${{ forgejo.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
+          echo "host=$(printf '%s' "${{ github.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
 
       - name: Pull build image
         run: |
-          BUILD_IMAGE="${{ vars.BUILD_IMAGE || format('{0}/{1}:build', steps.reg.outputs.host, forgejo.repository) }}"
+          BUILD_IMAGE="${{ vars.BUILD_IMAGE || format('{0}/{1}:build', steps.reg.outputs.host, github.repository) }}"
           docker pull "$BUILD_IMAGE" 2>/dev/null || \
             docker build -f docker/Dockerfile.build -t "$BUILD_IMAGE" .
           echo "BUILD_IMAGE=$BUILD_IMAGE" >> "$GITHUB_ENV"
@@ -65,12 +65,12 @@ jobs:
     name: FreeBSD (${{ matrix.arch }})
     if: >-
       ${{
-        forgejo.event_name != 'workflow_run' ||
+        github.event_name != 'workflow_run' ||
         (
-          forgejo.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.conclusion == 'success' &&
           (
-            forgejo.event.workflow_run.head_branch == 'main' ||
-            forgejo.event.workflow_run.head_branch == 'master'
+            github.event.workflow_run.head_branch == 'main' ||
+            github.event.workflow_run.head_branch == 'master'
           )
         )
       }}
@@ -164,7 +164,7 @@ jobs:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
         run: |
           TAG="v${{ steps.ver.outputs.version }}"
-          FORGEJO_API="${{ forgejo.server_url }}/api/v1/repos/${{ forgejo.repository }}"
+          FORGEJO_API="${{ github.server_url }}/api/v1/repos/${{ github.repository }}"
 
           EXISTING_ID=$(curl -qsSf \
             -H "Authorization: token ${FORGEJO_TOKEN}" \
@@ -198,13 +198,13 @@ jobs:
       - name: Compute Forgejo registry host
         id: reg
         run: |
-          echo "host=$(printf '%s' "${{ forgejo.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
+          echo "host=$(printf '%s' "${{ github.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
 
       - name: Login to Forgejo registry
         run: |
           echo "${{ secrets.FORGEJO_TOKEN }}" | \
             docker login "${{ steps.reg.outputs.host }}" \
-              -u "${{ forgejo.repository_owner }}" --password-stdin
+              -u "${{ github.repository_owner }}" --password-stdin
 
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
@@ -216,6 +216,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ steps.reg.outputs.host }}/${{ forgejo.repository }}:latest
-            ${{ steps.reg.outputs.host }}/${{ forgejo.repository }}:${{ steps.ver.outputs.version }}
-            ${{ steps.reg.outputs.host }}/${{ forgejo.repository }}:${{ steps.yymm.outputs.tag }}
+            ${{ steps.reg.outputs.host }}/${{ github.repository }}:latest
+            ${{ steps.reg.outputs.host }}/${{ github.repository }}:${{ steps.ver.outputs.version }}
+            ${{ steps.reg.outputs.host }}/${{ github.repository }}:${{ steps.yymm.outputs.tag }}

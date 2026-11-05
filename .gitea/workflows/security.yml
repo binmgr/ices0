@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ gitea.workflow }}-${{ gitea.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       - name: truffleHog scan
         run: |
           docker run --rm --name "trufflehog-$RANDOM" \
-            -v "${{ gitea.workspace }}:/repo" \
+            -v "${{ github.workspace }}:/repo" \
             trufflesecurity/trufflehog:latest \
             git file:///repo --since-commit HEAD~1 --only-verified --fail
 
@@ -63,11 +63,11 @@ jobs:
       - name: Compute Gitea registry host
         id: reg
         run: |
-          echo "host=$(printf '%s' "${{ gitea.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
+          echo "host=$(printf '%s' "${{ github.server_url }}" | sed 's|^https\?://||')" >> "$GITHUB_OUTPUT"
       - name: Install Trivy
         run: |
           curl -qLSsf https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
       - name: Scan published image
         run: |
           trivy image --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH \
-            "${{ steps.reg.outputs.host }}/${{ gitea.repository }}:latest"
+            "${{ steps.reg.outputs.host }}/${{ github.repository }}:latest"
