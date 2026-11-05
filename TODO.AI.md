@@ -1,1 +1,0 @@
-- [ ] Security workflow: scheduled Trivy container scan fails with `[vulndb] Failed to download artifact` from mirror.gcr.io (`aquasec/trivy-db:2`), recurring on every scheduled run since 2026-10; investigate setting `TRIVY_DB_REPOSITORY` to try ghcr.io first or caching the DB (.github/workflows/security.yml, mirrored in .gitea, .forgejo, .gitlab-ci.yml, Jenkinsfile)

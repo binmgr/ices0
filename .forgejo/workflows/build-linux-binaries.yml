@@ -4,6 +4,8 @@ on:
   workflow_run:
     workflows: ['Build Environment Image']
     types: [completed]
+  schedule:
+    - cron: '0 0 1 * *'
   workflow_dispatch:
 
 permissions:

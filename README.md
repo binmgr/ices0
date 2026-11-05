@@ -259,7 +259,7 @@ Linux builds run inside the reusable `ghcr.io/binmgr/ices0:build` image produced
 ### How It Works
 
 1. `build-env-image.yml` builds `ghcr.io/binmgr/ices0:build` when `docker/Dockerfile.build` changes, quarterly, or manually
-2. `build-linux-binaries.yml` triggers on successful `Build Environment Image` completion on main/master, or manually
+2. `build-linux-binaries.yml` triggers on successful `Build Environment Image` completion on main/master, monthly (so the runtime image picks up Alpine security fixes), or manually
 3. Linux amd64 builds natively with Alpine GCC; Linux arm64 cross-builds with the Bootlin musl toolchain
 4. FreeBSD builds natively inside QEMU VMs via `vmactions/freebsd-vm`
 5. Version is extracted from upstream `configure.ac` at build time
